@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="The HAFS Herald — student-run school newspaper." />
+  <title>The HAFS Herald</title>
+  <link rel="icon" href="/assets/logo.png" type="image/png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="topbar container">
+      <div class="brand">
+        <a class="logo" href="index.html" aria-label="The HAFS Herald home">
+          <span class="logo-mark logo-mark--img"><img src="/assets/logo.png" alt="The HAFS Herald logo" /></span>
+          <span class="logo-text">
+            <span class="logo-title">The HAFS Herald</span>
+            <span class="logo-subtitle">Discimus Scribendo</span>
+          </span>
+        </a>
+      </div>
+
+      <div class="topbar-right">
+        <div class="masthead-meta" aria-label="Issue info">
+          <span class="pill" id="todayPill">Loading date…</span>
+          <span class="pill pill-muted" id="issuePill">Issue #12</span>
+        </div>
+
+        <button class="icon-btn" id="themeBtn" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+          <span aria-hidden="true">☾</span>
+        </button>
+
+        <button class="icon-btn mobile-only" id="menuBtn" type="button" aria-label="Open menu" title="Menu">
+          <span aria-hidden="true">☰</span>
+        </button>
+      </div>
+    </div>
+
+    <nav class="nav container" id="siteNav" aria-label="Primary navigation">
+      <a href="index.html" class="nav-link is-active">Home</a>
+      <a href="archive.html" class="nav-link">Archive</a>
+      <a href="#sections" class="nav-link">Sections</a>
+      <a href="staff.html" class="nav-link">Staff</a>
+      <a href="#contact" class="nav-link">Contact</a>
+      <div class="nav-spacer" aria-hidden="true"></div>
+      <a href="/admin" class="nav-link nav-cta">Admin</a>
+      </nav>
+  </header>
+
+  <main id="main" class="container">
+    <section class="hero" aria-label="Top stories">
+      <div class="hero-left">
+        <h1 class="headline-xl" id="issueHeadline">Issue #—</h1>
+        <p class="lede"><span class="muted">Published:</span> <span id="issueDate">—</span></p>
+
+        <div class="controls" aria-label="Search and filters">
+          <label class="field">
+            <span class="field-label">Search</span>
+            <input id="searchInput" type="search" placeholder="Search headlines, sections, authors…" autocomplete="off" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">Sort</span>
+            <select id="sortSelect">
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="title">Title (A–Z)</option>
+            </select>
+          </label>
+        </div>
+</div>
+
+      <aside class="hero-right" aria-label="Featured story">
+        <div class="card featured" id="featuredCard"></div>
+      </aside>
+    </section>
+
+    <section id="latest" class="section">
+      <div class="section-head">
+        <h2 class="headline-lg">Latest</h2>
+        <p class="muted"><span id="quoteLatest"></span></p>
+      </div>
+
+      <div class="grid" id="articlesGrid" aria-live="polite"></div>
+
+      <div class="empty-state" id="emptyState" hidden>
+        <h3 class="headline-md">No matches.</h3>
+        <p class="muted">Try a different search term or switch sections.</p>
+      </div>
+    </section>
+
+    <section id="sections" class="section">
+      <div class="section-head">
+        <h2 class="headline-lg">Sections</h2>
+        <p class="muted"><span id="quoteSections"></span></p>
+      </div>
+
+      
+      <div class="section-cards section-cards-10">
+        <a class="mini-card mini-link" href="section.html?section=News">
+          <h3>News</h3>
+          <p>Campus events, clubs, updates, and reporting.</p>
+          <div class="mini-link-cta">View News →</div>
+        </a>
+        <a class="mini-card mini-link" href="section.html?section=Opinion">
+          <h3>Opinion</h3>
+          <p>Columns, editorials, and debate.</p>
+          <div class="mini-link-cta">View Opinion →</div>
+        </a>
+        <a class="mini-card mini-link" href="section.html?section=Science">
+          <h3>Science</h3>
+          <p>Research spotlights, explainers, interviews.</p>
+          <div class="mini-link-cta">View Science →</div>
+        </a>
+        <a class="mini-card mini-link" href="section.html?section=Economics">
+          <h3>Economics</h3>
+          <p>Markets, policy tradeoffs, student-facing costs.</p>
+          <div class="mini-link-cta">View Economics →</div>
+        </a>
+        <a class="mini-card mini-link" href="section.html?section=History">
+          <h3>History</h3>
+          <p>Context, archives, and long memory.</p>
+          <div class="mini-link-cta">View History →</div>
+        </a>
+        <a class="mini-card mini-link" href="section.html?section=Policy%20%2F%20Public%20Affairs">
+          <h3>Policy / Public Affairs</h3>
+          <p>Civic life, institutional choices, public reasoning.</p>
+          <div class="mini-link-cta">View Policy / Public Affairs →</div>
+        </a>
+        <a class="mini-card mini-link" href="section.html?section=Math%20%26%20Data">
+          <h3>Math & Data</h3>
+          <p>Visualization, surveys, models, and critique.</p>
+          <div class="mini-link-cta">View Math & Data →</div>
+        </a>
+        <a class="mini-card mini-link" href="section.html?section=Sports">
+          <h3>Sports</h3>
+          <p>Recaps, profiles, schedules, and highlights.</p>
+          <div class="mini-link-cta">View Sports →</div>
+        </a>
+        <a class="mini-card mini-link" href="section.html?section=Student%20Life">
+          <h3>Student Life</h3>
+          <p>Culture, routines, and what it feels like to be here.</p>
+          <div class="mini-link-cta">View Student Life →</div>
+        </a>
+        <a class="mini-card mini-link" href="section.html?section=Arts%20%26%20Culture">
+          <h3>Arts & Culture</h3>
+          <p>Reviews, media, performance, and taste.</p>
+          <div class="mini-link-cta">View Arts & Culture →</div>
+        </a>
+      </div>
+    </section>
+
+<section id="newsletter" class="section">
+      <div class="section-head">
+        <h2 class="headline-lg">Newsletter</h2>
+        <p class="muted"><span id="quoteNewsletter"></span></p>
+      </div>
+
+      <form class="newsletter" id="newsletterForm">
+        <label class="field grow">
+          <span class="field-label">Email</span>
+          <input type="email" required placeholder="name@example.com" />
+        </label>
+        <button class="btn" type="submit">Subscribe</button>
+        <p class="form-hint muted" id="newsletterHint">No spam—just issue releases and highlights.</p>
+      </form>
+    </section>
+
+    <section id="contact" class="section">
+      <div class="section-head">
+        <h2 class="headline-lg">Contact</h2>
+        <p class="muted"><span id="quoteContact"></span></p>
+      </div>
+
+      <div class="contact-grid">
+        <div class="mini-card">
+          <h3>Email</h3>
+          <p><a href="mailto:hafsherald@gmail.com">hafsherald@gmail.com</a></p>
+        </div>
+        <div class="mini-card">
+          <h3>Instagram</h3>
+          <p><a href="https://instagram.com/hafsherald" target="_blank" rel="noopener" aria-label="Instagram link">@hafsherald</a></p>
+        </div>
+        <div class="mini-card">
+          <h3>Tips</h3>
+          <p><a href="#" id="tipLink">Submit an anonymous tip</a></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <div class="footer-title">The HAFS Herald</div>
+        <div class="muted">© <span id="yearSpan"></span> Student Newspaper.</div>
+      </div>
+      <div class="footer-links">
+        <a href="archive.html">Archive</a>
+        <a href="staff.html">Staff</a>
+        <a href="#latest">Latest</a>
+        <a href="#contact">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <dialog class="modal" id="tipModal" aria-label="Anonymous tip form">
+    <form id="tipForm" class="modal-card">
+      <div class="modal-head">
+        <h3 class="headline-md">Submit a tip</h3>
+        <button class="icon-btn" type="button" id="tipClose" aria-label="Close">✕</button>
+      </div>
+      <p class="muted">Send us a lead, a document, or a concern. We'll review it in the newsroom inbox.</p>
+      <label class="field">
+        <span class="field-label">Your tip</span>
+        <textarea id="tipMessage" name="message" rows="6" placeholder="What should we investigate?" required></textarea>
+      </label>
+      <div class="modal-actions">
+        <button class="btn btn-muted" type="button" id="tipCancel">Cancel</button>
+        <button class="btn" type="submit" id="tipSend">Send</button>
+      </div>
+      <p class="form-hint muted" id="tipHint">Anonymous by default. Don’t include private info you don’t have permission to share.</p>
+    </form>
+  </dialog>
+
+  <script src="./config.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+{% extends "admin_base.html" %}
+{% block content %}
+  <div class="card">
+    <h1 class="headline-lg" style="margin:0 0 .5rem 0;">Admin login</h1>
+    <p class="muted" style="margin:0 0 1rem 0;">Enter your admin password to edit articles.</p>
+
+    <form class="admin-form" method="post" action="/admin/login">
+      <input type="hidden" name="csrf" value="{{ csrf }}" />
+      <input type="hidden" name="next" value="{{ next }}" />
+
+      <label class="field">
+        <span class="field-label">Password</span>
+        <input type="password" name="password" required placeholder="••••••••" />
+      </label>
+
+      <div style="display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;">
+        <button class="btn" type="submit">Login</button>
+        <a class="btn btn-muted" href="/">Cancel</a>
+      </div>
+
+      <p class="help" style="margin:0;">
+        Password comes from the environment variable <code>HAFS_ADMIN_PASSWORD</code> (or <code>ADMIN_PASSWORD</code>). Default is <code>changeme</code>.
+      </p>
+    </form>
+  </div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "admin_base.html" %}
+{% block content %}
+  <div class="admin-top">
+    <div>
+      <h1 class="headline-lg" style="margin:0;">Subscribers</h1>
+      <div class="muted">Newsletter signups collected from the site.</div>
+    </div>
+    <div class="links">
+      <a class="btn btn-muted" href="/admin">Back to articles</a>
+      <a class="btn btn-muted" href="/admin/tips">View tips</a>
+      <a class="btn btn-muted" href="/admin/settings">Settings</a>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Subscribed at (UTC)</th>
+          <th style="width:140px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in subscribers %}
+          <tr>
+            <td><strong>{{ s.email }}</strong></td>
+            <td class="muted">{{ s.created_at }}</td>
+            <td>
+              <form method="post" action="/admin/subscribers/delete/{{ s.id }}" onsubmit="return confirm('Remove this subscriber?');">
+                <input type="hidden" name="csrf" value="{{ csrf }}" />
+                <button class="btn btn-muted" type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        {% if subscribers|length == 0 %}
+          <tr><td colspan="3" class="muted">No subscribers yet.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

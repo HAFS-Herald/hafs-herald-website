@@ -1,0 +1,108 @@
+{% extends "admin_base.html" %}
+{% block content %}
+  <div class="admin-top">
+    <div>
+      <h1 class="headline-lg" style="margin:0;">{% if is_new %}New article{% else %}Edit article{% endif %}</h1>
+      <div class="muted">ID is the URL slug: <code>article.html?id=ID</code>.</div>
+    </div>
+    <div class="links">
+      <a class="btn btn-muted" href="/admin">Back</a>
+      <a class="btn btn-muted" href="/article.html?id={{ a.id }}">View</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <form class="admin-form" method="post" action="/admin/save" enctype="multipart/form-data">
+      <input type="hidden" name="csrf" value="{{ csrf }}" />
+      <input type="hidden" name="is_new" value="{{ 1 if is_new else 0 }}" />
+
+      <div class="row">
+        <label class="field">
+          <span class="field-label">ID (slug)</span>
+          <input name="id" value="{{ a.id }}" {% if not is_new %}readonly{% endif %} placeholder="e.g. policy-school-board" />
+          <span class="help">No spaces. Use dashes.</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Date</span>
+          <input name="date" value="{{ a.date }}" placeholder="YYYY-MM-DD" />
+        </label>
+      </div>
+
+      <div class="row">
+        <label class="field">
+          <span class="field-label">Issue number</span>
+          <input name="issue" value="{{ a.issue or 0 }}" />
+          <span class="help">Home page shows the current issue only.</span>
+        </label>
+
+        <div class="field">
+          <span class="field-label">Quick link</span>
+          <div class="pill" style="justify-content:flex-start;">article.html?id={{ a.id }}</div>
+        </div>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Title</span>
+        <input name="title" value="{{ a.title }}" required />
+      </label>
+
+      <div class="row">
+        <label class="field">
+          <span class="field-label">Section</span>
+          <select name="section">
+            {% for s in sections %}
+              <option value="{{ s }}" {% if a.section==s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Author</span>
+          <input name="author" value="{{ a.author }}" required />
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Summary</span>
+        <textarea name="summary" rows="3" required>{{ a.summary }}</textarea>
+      </label>
+
+      <div class="row">
+        <label class="field">
+          <span class="field-label">Cover path (optional)</span>
+          <input name="cover" value="{{ a.cover }}" placeholder="assets/uploads/yourimage.jpg" />
+          <span class="help">If you upload below, this fills automatically.</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Upload cover image (png/jpg/webp)</span>
+          <input type="file" name="cover_upload" accept=".png,.jpg,.jpeg,.webp" />
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Pull quote (optional)</span>
+        <input name="pullQuote" value="{{ a.pullQuote or '' }}" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Body (paragraphs separated by a blank line)</span>
+        <span class="help">To insert an image mid-article, add a paragraph like: <code>![Alt text](assets/uploads/photo.jpg "Caption")</code></span>
+        <textarea name="body" rows="12">{% for p in a.body %}{{ p }}{% if not loop.last %}
+
+{% endif %}{% endfor %}</textarea>
+      </label>
+
+      <label class="field" style="display:flex; gap:.6rem; align-items:center;">
+        <input type="checkbox" name="featured" {% if a.featured %}checked{% endif %} style="width: auto;" />
+        <span><strong>Featured</strong> (shows as the big headline on Home)</span>
+      </label>
+
+      <div style="display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;">
+        <button class="btn" type="submit">Save</button>
+        <a class="btn btn-muted" href="/admin">Cancel</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Article — The HAFS Herald." />
+  <title>Article • The HAFS Herald</title>
+  <link rel="icon" href="/assets/logo.png" type="image/png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="topbar container">
+      <div class="brand">
+        <a class="logo" href="index.html" aria-label="Back to home">
+          <span class="logo-mark logo-mark--img"><img src="/assets/logo.png" alt="The HAFS Herald logo" /></span>
+          <span class="logo-text">
+            <span class="logo-title">The HAFS Herald</span>
+            <span class="logo-subtitle">Article</span>
+          </span>
+        </a>
+      </div>
+
+      <div class="topbar-right">
+        <div class="masthead-meta" aria-label="Issue info">
+          <span class="pill" id="todayPill">Loading date…</span>
+          <span class="pill pill-muted" id="issuePill">Issue #—</span>
+        </div>
+
+        <button class="icon-btn" id="themeBtn" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+          <span aria-hidden="true">☾</span>
+        </button>
+        <button class="icon-btn mobile-only" id="menuBtn" type="button" aria-label="Open menu" title="Menu"><span aria-hidden="true">☰</span></button>
+      </div>
+    </div>
+
+    <nav class="nav container" id="siteNav" aria-label="Primary navigation">
+      <a href="index.html" class="nav-link">Home</a>
+      <a href="archive.html" class="nav-link">Archive</a>
+      <a href="index.html#sections" class="nav-link">Sections</a>
+      <a href="staff.html" class="nav-link">Staff</a>
+      <a href="index.html#contact" class="nav-link">Contact</a>
+      <a href="/admin" class="nav-link">Admin</a>
+      <div class="nav-spacer" aria-hidden="true"></div>
+      <a href="#" class="nav-link nav-cta" id="printBtn">Print</a>
+    </nav>
+  </header>
+
+  <main id="main" class="container article-page">
+    <article class="article" id="articleRoot" aria-live="polite"></article>
+
+    <aside class="article-aside">
+      <div class="card">
+        <h3 class="headline-md">More in this section</h3>
+        <div class="stack" id="relatedList"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="headline-md">Share</h3>
+        <div class="share-row">
+          <button class="btn btn-muted" id="copyLinkBtn" type="button">Copy link</button>
+          <a class="btn" id="mailShare" href="#">Email</a>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <div class="footer-title">The HAFS Herald</div>
+        <div class="muted">© <span id="yearSpan"></span> Student Newspaper.</div>
+      </div>
+      <div class="footer-links">
+        <a href="archive.html">Archive</a>
+        <a href="index.html">Home</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="./config.js"></script>
+  <script type="module" src="article.js"></script>
+</body>
+</html>

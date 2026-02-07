@@ -1,0 +1,46 @@
+{% extends "admin_base.html" %}
+{% block content %}
+  <div class="admin-top">
+    <div>
+      <h1 class="headline-lg" style="margin:0;">Settings</h1>
+      <div class="muted">Issue metadata, rotating quotes, and staff page content.</div>
+    </div>
+    <div class="links">
+      <a class="btn btn-muted" href="/admin">Back</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <form class="admin-form" method="post" action="/admin/settings">
+      <input type="hidden" name="csrf" value="{{ csrf }}" />
+
+      <div class="row">
+        <label class="field">
+          <span class="field-label">Current issue number</span>
+          <input name="currentIssueNumber" value="{{ settings.currentIssueNumber or 0 }}" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Current issue publish date</span>
+          <input name="currentIssueDate" value="{{ settings.currentIssueDate or '' }}" placeholder="YYYY-MM-DD" />
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Rotating witty quotes (one per line)</span>
+        <textarea name="wittyQuotes" rows="8">{{ quotes_text }}</textarea>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Staff (one per line)</span>
+        <span class="help">Format: <code>Role — Name — Optional contact</code></span>
+        <textarea name="staff" rows="8">{{ staff_text }}</textarea>
+      </label>
+
+      <div style="display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;">
+        <button class="btn" type="submit">Save settings</button>
+        <a class="btn btn-muted" href="/admin">Cancel</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

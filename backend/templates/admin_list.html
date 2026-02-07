@@ -1,0 +1,57 @@
+{% extends "admin_base.html" %}
+{% block content %}
+  <div class="admin-top">
+    <div>
+      <h1 class="headline-lg" style="margin:0;">Articles</h1>
+      <div class="muted">Create, edit, delete, and feature stories.</div>
+    </div>
+    <div class="links">
+      <a class="btn" href="/admin/new">New article</a>
+      <form method="post" action="/admin/seed" style="display:inline;">
+        <input type="hidden" name="csrf" value="{{ session.get('csrf') }}" />
+        <button class="btn btn-muted" type="submit">Seed (if empty)</button>
+      </form>
+      <a class="btn btn-muted" href="/admin/settings">Settings</a>
+      <a class="btn btn-muted" href="/admin/subscribers">Subscribers</a>
+      <a class="btn btn-muted" href="/admin/tips">Tips</a>
+      <a class="btn btn-muted" href="/admin/export.json">Export JSON</a>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Section</th>
+          <th>Date</th>
+          <th>Issue</th>
+          <th>Author</th>
+          <th>Featured</th>
+          <th style="width: 180px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in articles %}
+          <tr>
+            <td><strong>{{ a.title }}</strong><div class="muted small">{{ a.id }}</div></td>
+            <td>{{ a.section }}</td>
+            <td>{{ a.date }}</td>
+            <td>{{ a.issue }}</td>
+            <td>{{ a.author }}</td>
+            <td>{% if a.featured %}✅{% else %}—{% endif %}</td>
+            <td>
+              <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+                <a class="btn btn-muted" href="/admin/edit/{{ a.id }}">Edit</a>
+                <form method="post" action="/admin/delete/{{ a.id }}" onsubmit="return confirm('Delete this article?');">
+                  <input type="hidden" name="csrf" value="{{ session.get('csrf') }}" />
+                  <button class="btn btn-muted" type="submit">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title or "Admin" }} • The HAFS Herald</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .admin-wrap{ padding: 1.2rem 0 2rem 0; }
+    .admin-top{
+      display:flex; align-items:center; justify-content:space-between;
+      gap: 1rem; flex-wrap: wrap; margin: .6rem 0 1rem 0;
+    }
+    .admin-top .links{ display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+    .admin-table{ width:100%; border-collapse: collapse; overflow:hidden; border-radius: var(--radius); }
+    .admin-table th, .admin-table td{ padding: .7rem .8rem; border-bottom: 1px solid var(--border); text-align:left; }
+    .admin-table th{ color: var(--muted); font-size:.92rem; font-weight:600; background: color-mix(in oklab, var(--panel) 85%, transparent); }
+    .admin-table tr:hover td{ background: color-mix(in oklab, var(--panel) 80%, transparent); }
+    .flash{ margin: .8rem 0; }
+    .flash .msg{ padding:.7rem .9rem; border-radius: 14px; border:1px solid var(--border); background: var(--panel); }
+    .flash .ok{ border-color: color-mix(in oklab, var(--accent) 25%, var(--border)); background: color-mix(in oklab, var(--accent) 8%, var(--panel)); }
+    .flash .error{ border-color: color-mix(in oklab, var(--accent-2) 25%, var(--border)); background: color-mix(in oklab, var(--accent-2) 8%, var(--panel)); }
+    .admin-form{ display:grid; gap: .8rem; }
+    .admin-form .row{ display:grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+    @media (max-width: 820px){ .admin-form .row{ grid-template-columns: 1fr; } }
+    .help{ color: var(--muted); font-size: .92rem; }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="topbar container">
+      <div class="brand">
+        <a class="logo" href="/" aria-label="The HAFS Herald home">
+          <span class="logo-mark logo-mark--img"><img src="/assets/logo.png" alt="The HAFS Herald logo" /></span>
+          <span class="logo-text">
+            <span class="logo-title">The HAFS Herald</span>
+            <span class="logo-subtitle">Admin</span>
+          </span>
+        </a>
+      </div>
+      <div class="topbar-right">
+        <a class="btn btn-muted" href="/">View site</a>
+        {% if session.get("authed") %}
+          <a class="btn btn-muted" href="/admin/logout">Logout</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <main class="container admin-wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash">
+          {% for category, message in messages %}
+            <div class="msg {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

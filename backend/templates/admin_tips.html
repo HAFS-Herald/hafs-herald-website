@@ -1,0 +1,57 @@
+{% extends "admin_base.html" %}
+{% block content %}
+  <div class="admin-top">
+    <div>
+      <h1 class="headline-lg" style="margin:0;">Anonymous tips</h1>
+      <div class="muted">Tips submitted from the homepage tip form.</div>
+    </div>
+    <div class="links">
+      <a class="btn btn-muted" href="/admin">Back to articles</a>
+      <a class="btn btn-muted" href="/admin/subscribers">Subscribers</a>
+      <a class="btn btn-muted" href="/admin/settings">Settings</a>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th style="width:110px;">Status</th>
+          <th>Message</th>
+          <th style="width:200px;">Received at (UTC)</th>
+          <th style="width:220px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tips %}
+          <tr>
+            <td><span class="tag">{{ t.status }}</span></td>
+            <td style="white-space:pre-wrap;">{{ t.message }}</td>
+            <td class="muted">{{ t.created_at }}</td>
+            <td>
+              <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+                <form method="post" action="/admin/tips/mark/{{ t.id }}">
+                  <input type="hidden" name="csrf" value="{{ csrf }}" />
+                  <input type="hidden" name="status" value="read" />
+                  <button class="btn btn-muted" type="submit">Mark read</button>
+                </form>
+                <form method="post" action="/admin/tips/mark/{{ t.id }}">
+                  <input type="hidden" name="csrf" value="{{ csrf }}" />
+                  <input type="hidden" name="status" value="resolved" />
+                  <button class="btn btn-muted" type="submit">Resolve</button>
+                </form>
+                <form method="post" action="/admin/tips/delete/{{ t.id }}" onsubmit="return confirm('Delete this tip?');">
+                  <input type="hidden" name="csrf" value="{{ csrf }}" />
+                  <button class="btn btn-muted" type="submit">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+        {% if tips|length == 0 %}
+          <tr><td colspan="4" class="muted">No tips yet.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}
