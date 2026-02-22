@@ -1,0 +1,6 @@
+# If someone hits an uploaded image on the Pages domain, redirect to the backend.
+# (These files are stored on Railway, not inside the Pages build.)
+/assets/uploads/* https://hafs-herald-website-production.up.railway.app/assets/uploads/:splat 302
+
+# SPA fallback (keeps /article/<id> etc working on refresh)
+/* /index.html 200

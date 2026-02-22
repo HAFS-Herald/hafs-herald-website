@@ -28,13 +28,34 @@ from flask import (
 BASE_DIR = Path(__file__).resolve().parent
 PUBLIC_DIR = BASE_DIR / "public"
 
-# Persist data on Railway by mounting a Volume and setting these env vars:
-# DATA_DIR=/data
-# DB_PATH=/data/data.sqlite3
-# UPLOAD_DIR=/data/uploads
-DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR)))
-DB_PATH = Path(os.environ.get("DB_PATH", str(DATA_DIR / "data.sqlite3")))
-UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", str(DATA_DIR / "uploads")))
+# Persist data on Railway by mounting a Volume and (optionally) setting these env vars:
+#   DATA_DIR=/data
+#   DB_PATH=/data/data.sqlite3
+#   UPLOAD_DIR=/data/uploads
+#
+# If you forget to set DATA_DIR on Railway but you *did* mount a Volume at /data,
+# this will auto-detect /data and use it.
+def _detect_data_dir() -> Path:
+    env = os.environ.get("DATA_DIR")
+    if env:
+        return Path(env)
+
+    candidate = Path("/data")
+    if candidate.exists() and candidate.is_dir():
+        try:
+            probe = candidate / ".write_probe"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            return candidate
+        except Exception:
+            pass
+
+    return BASE_DIR
+
+
+DATA_DIR = _detect_data_dir()
+DB_PATH = Path(os.environ.get("DB_PATH") or str(DATA_DIR / "data.sqlite3"))
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR") or str(DATA_DIR / "uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 SECTIONS = [
     "News",
@@ -364,6 +385,15 @@ def create_app() -> Flask:
             return send_from_directory(logo.parent, logo.name)
         abort(404)
 
+    @app.get("/assets/uploads/<path:filename>")
+    def uploaded_assets(filename: str):
+        """Serve uploaded media from the persistent upload directory.
+
+        Articles store cover images as /assets/uploads/<filename>.
+        These files live in UPLOAD_DIR (typically a Railway Volume).
+        """
+        return send_from_directory(UPLOAD_DIR, filename)
+
     # ---------- Public API ----------
     @app.get("/api/content")
     def api_content():
@@ -489,7 +519,7 @@ def create_app() -> Flask:
             out_name = f"{stem}_{token}{('.' + ext) if ext else ''}"
             out_path = UPLOAD_DIR / out_name
             f.save(out_path)
-            cover_path = f"assets/uploads/{out_name}"
+            cover_path = f"/assets/uploads/{out_name}"
 
         a = {
             "id": article_id,

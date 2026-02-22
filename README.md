@@ -45,3 +45,11 @@ This repo is split into:
 ## Local dev
 - Frontend: open `frontend/public/index.html` with a local static server (or just use the backend locally).
 - Backend: run `backend/run_windows.bat` (Windows) or `python backend/app.py`.
+
+## Uploads / Images (why your pictures weren’t loading)
+- Cover uploads are stored on the **backend** (Railway) in `UPLOAD_DIR` (ideally on a Railway Volume).
+- Articles store image paths like `/assets/uploads/<filename>`.
+- The backend now serves those files at `GET /assets/uploads/<filename>`.
+- The frontend normalizes media URLs when it loads `/api/content`, so images render correctly even when the site is hosted on Cloudflare Pages.
+- `frontend/public/_redirects` also adds a safety redirect so visiting `https://hafsherald.com/assets/uploads/...` will send you to the backend.
+
