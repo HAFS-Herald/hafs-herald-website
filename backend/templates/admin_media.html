@@ -36,6 +36,18 @@
     <span class="badge">Max upload policy: {{ max_mb }}MB</span>
   </div>
 
+  <form method="post" action="/admin/media/upload" enctype="multipart/form-data" style="margin: 12px 0;">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <input type="file" name="files" multiple accept="image/*" />
+    <select name="folder">
+      <option value="">(no folder)</option>
+      <option value="covers">covers</option>
+      <option value="inline">inline</option>
+      <option value="staff">staff</option>
+    </select>
+    <button class="btn" type="submit">Upload</button>
+  </form>
+  
   <p style="color:#555;">
     Copy this into articles: <code>assets/uploads/filename.jpg</code>
   </p>
