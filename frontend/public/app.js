@@ -297,20 +297,29 @@ async function main() {
   if (issueHeadline) issueHeadline.textContent = `Issue #${issueNum ?? "—"}`;
   if (issueDateEl) issueDateEl.textContent = formatDate(issueDate);
 
-  const issueArticles = (issueNum == null)
+  let issueArticles = (issueNum == null)
     ? [...articles]
     : articles.filter(a => Number(a.issue) === Number(issueNum));
+
+  // If currentIssueNumber is set but your articles don't have matching issue numbers yet,
+  // fall back to showing everything so Featured + Latest still work.
+  if (issueNum != null && issueArticles.length === 0 && articles.length) {
+    issueArticles = [...articles];
+  }
 
   const sortedForFeatured = sortArticles(issueArticles, "newest");
   renderFeatured(sortedForFeatured);
 
   function rerender() {
-    const q = normalize(searchInput.value);
+    const q = normalize(searchInput?.value || "");
+    const mode = sortSelect?.value || "newest";
+
     const filtered = issueArticles.filter(a => {
       const hay = normalize(`${a.title} ${a.summary} ${a.author} ${a.section}`);
       return q ? hay.includes(q) : true;
     });
-    const sorted = sortArticles(filtered, sortSelect.value);
+
+    const sorted = sortArticles(filtered, mode);
     renderGrid(sorted);
   }
 
@@ -318,7 +327,6 @@ async function main() {
 
   searchInput?.addEventListener("input", rerender);
   sortSelect?.addEventListener("change", rerender);
-
     setQuotesOnce();
 }
 
