@@ -672,6 +672,70 @@ def create_app() -> Flask:
         )
     from media_library import bp as media_bp
     app.register_blueprint(media_bp)
+    from pathlib import Path
+
+    ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+    @app.post("/admin/media/upload")
+    @require_login
+    def admin_media_upload():
+        if not verify_csrf():
+            abort(400)
+
+        # optional: allow subfolders like "covers", "inline", etc.
+        subdir = (request.form.get("folder") or "").strip()
+        if subdir:
+            # keep it safe: only simple folder names
+            if not re.match(r"^[A-Za-z0-9_-]{1,40}$", subdir):
+                flash("Bad folder name.", "error")
+                return redirect(url_for("admin_media"))
+            target_dir = (UPLOAD_DIR / subdir)
+        else:
+            target_dir = UPLOAD_DIR
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        max_mb = int(os.environ.get("MAX_UPLOAD_MB", "12"))
+        max_bytes = max_mb * 1024 * 1024
+
+        files = request.files.getlist("files")
+        if not files:
+            flash("No files selected.", "error")
+            return redirect(url_for("admin_media"))
+
+        saved = 0
+        skipped = 0
+
+        for f in files:
+            if not f or not getattr(f, "filename", ""):
+                continue
+
+            original = safe_filename(f.filename)  # you already have this helper :contentReference[oaicite:2]{index=2}
+            ext = Path(original).suffix.lower()
+            if ext not in ALLOWED_EXTS:
+                skipped += 1
+                continue
+
+            # size check (best-effort)
+            try:
+                f.stream.seek(0, os.SEEK_END)
+                size = f.stream.tell()
+                f.stream.seek(0)
+                if size > max_bytes:
+                    skipped += 1
+                    continue
+            except Exception:
+                # if we can't measure, still attempt save
+                pass
+
+            stem = Path(original).stem
+            token = secrets.token_hex(6)  # same collision-avoid pattern you use for cover uploads :contentReference[oaicite:3]{index=3}
+            out_name = f"{stem}_{token}{ext}"
+            f.save(target_dir / out_name)
+            saved += 1
+
+        flash(f"Uploaded {saved} file(s). Skipped {skipped}.", "ok" if saved else "error")
+        return redirect(url_for("admin_media"))
+    
 
     return app
 
