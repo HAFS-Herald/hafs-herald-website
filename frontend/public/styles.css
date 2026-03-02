@@ -723,3 +723,33 @@ textarea{ resize: vertical; }
 .mini-link:hover .mini-link-cta{
   color: var(--text);
 }
+
+
+/* --- Featured cover: prevent "blank hero" caused by clipping/stacking --- */
+
+/* Don’t clip the whole featured card; clip only the image area */
+.featured{ overflow: visible; }                 /* overrides overflow:hidden */ 
+.featured .media{
+  overflow: hidden;
+  display: block;
+  position: relative;
+  z-index: 0;
+}
+
+/* Make sure text always sits above media if anything overlaps */
+.featured .body{
+  position: relative;
+  z-index: 1;
+}
+
+/* Keep rounded corners on the image area */
+.featured .media{ border-radius: var(--radius) var(--radius) 0 0; }
+.featured--wide .media{ border-radius: var(--radius) 0 0 var(--radius); }
+
+/* Ensure the image fills the media box (even if heights get funky) */
+.featured .media img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
