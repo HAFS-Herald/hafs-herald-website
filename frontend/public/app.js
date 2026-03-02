@@ -4,7 +4,6 @@ const $ = (sel) => document.querySelector(sel);
 const API = window.HAFS_API_BASE || "";
 
 const articlesGrid = $("#articlesGrid");
-const featuredCard = $("#featuredCard");
 const searchInput = $("#searchInput");
 const sortSelect = $("#sortSelect");
 const emptyState = $("#emptyState");
@@ -214,37 +213,6 @@ function sortArticles(list, mode) {
   copy.sort((a,b) => new Date(a.date) - new Date(b.date));
   if (mode === "newest") copy.reverse();
   return copy;
-}
-
-function renderFeatured(list) {
-  if (!featuredCard) return;
-  const featured = list.find(a => a.featured) || list[0];
-  if (!featured) {
-    featuredCard.innerHTML = `<div class="body"><p class="muted">No articles yet.</p></div>`;
-    return;
-  }
-
-  featuredCard.innerHTML = `
-    <div class="media">
-      ${featured.cover ? `<img src="${featured.cover}" alt="" loading="lazy">` : ""}
-    </div>
-    <div class="body">
-      <div class="kicker">
-        <span class="tag tag-accent">${featured.section}</span>
-        <span>•</span>
-        <span>${shortDate(featured.date)}</span>
-      </div>
-      <h2 class="headline-md" style="margin:0 0 .4rem 0;">
-        <a class="title-link" href="article.html?id=${encodeURIComponent(featured.id)}">${featured.title}</a>
-      </h2>
-      <p class="muted" style="margin:.25rem 0 .75rem 0;">${featured.summary}</p>
-      <div class="meta">
-        <span>By ${featured.author}</span>
-        <span>•</span>
-        <span>${readingTime((featured.body || []).join(" "))}</span>
-      </div>
-    </div>
-  `;
 }
 
 function renderGrid(list) {
