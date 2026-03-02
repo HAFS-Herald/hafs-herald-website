@@ -5,6 +5,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import secrets
+from flask import session
 
 from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, send_from_directory, abort
 
@@ -22,6 +24,13 @@ def _get_upload_dir() -> Path:
     # Your README uses UPLOAD_DIR=/data/uploads :contentReference[oaicite:1]{index=1}
     up = os.environ.get("UPLOAD_DIR") or current_app.config.get("UPLOAD_DIR") or "uploads"
     return Path(up).resolve()
+
+def _csrf_token() -> str:
+    tok = session.get("csrf")
+    if not tok:
+        tok = secrets.token_urlsafe(32)
+        session["csrf"] = tok
+    return tok
 
 def _get_db_path() -> Optional[Path]:
     db = os.environ.get("DB_PATH") or current_app.config.get("DB_PATH")
@@ -128,7 +137,14 @@ def media_index():
     # Simple “policy” values surfaced in UI
     max_mb = int(os.environ.get("MAX_UPLOAD_MB") or MAX_UPLOAD_MB_DEFAULT)
 
-    return render_template("admin_media.html", files=files, q=q, only_unused=only_unused, max_mb=max_mb)
+    return render_template(
+    "admin_media.html",
+    files=files,
+    q=q,
+    only_unused=only_unused,
+    max_mb=max_mb,
+    csrf=_csrf_token(),
+)
 
 @bp.post("/admin/media/delete")
 @admin_required
