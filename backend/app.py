@@ -670,6 +670,8 @@ def create_app() -> Flask:
                 "tips": [dict(r) for r in tips],
             }
         )
+    from media_library import bp as media_bp
+    app.register_blueprint(media_bp)
 
     return app
 
