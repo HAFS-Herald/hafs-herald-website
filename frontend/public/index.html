@@ -50,7 +50,7 @@
   </header>
 
   <main id="main" class="container">
-    <section class="hero" aria-label="Top stories">
+    <section class="hero hero--stack" aria-label="Top stories">
       <div class="hero-left">
         <h1 class="headline-xl" id="issueHeadline">Issue #—</h1>
         <p class="lede"><span class="muted">Published:</span> <span id="issueDate">—</span></p>
@@ -58,7 +58,7 @@
 </div>
 
       <aside class="hero-right" aria-label="Featured story">
-        <div class="card featured" id="featuredCard"></div>
+        <div class="card featured featured--wide" id="featuredCard"></div>
       </aside>
     </section>
 
@@ -71,8 +71,7 @@
       <div class="grid" id="articlesGrid" aria-live="polite"></div>
 
       <div class="empty-state" id="emptyState" hidden>
-        <h3 class="headline-md">No matches.</h3>
-        <p class="muted">Try a different search term or switch sections.</p>
+        <p class="muted">No articles to show yet. Check the Archive or publish the current issue.</p>
       </div>
     </section>
 
