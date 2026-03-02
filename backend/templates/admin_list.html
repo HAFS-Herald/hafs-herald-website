@@ -27,7 +27,6 @@
           <th>Date</th>
           <th>Issue</th>
           <th>Author</th>
-          <th>Featured</th>
           <th style="width: 180px;">Actions</th>
         </tr>
       </thead>
@@ -39,7 +38,6 @@
             <td>{{ a.date }}</td>
             <td>{{ a.issue }}</td>
             <td>{{ a.author }}</td>
-            <td>{% if a.featured %}✅{% else %}—{% endif %}</td>
             <td>
               <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
                 <a class="btn btn-muted" href="/admin/edit/{{ a.id }}">Edit</a>
