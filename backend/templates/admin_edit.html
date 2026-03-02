@@ -94,11 +94,6 @@
 {% endif %}{% endfor %}</textarea>
       </label>
 
-      <label class="field" style="display:flex; gap:.6rem; align-items:center;">
-        <input type="checkbox" name="featured" {% if a.featured %}checked{% endif %} style="width: auto;" />
-        <span><strong>Featured</strong> (shows as the big headline on Home)</span>
-      </label>
-
       <div style="display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;">
         <button class="btn" type="submit">Save</button>
         <a class="btn btn-muted" href="/admin">Cancel</a>
