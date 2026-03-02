@@ -143,7 +143,6 @@ def row_to_article(r: sqlite3.Row) -> Dict[str, Any]:
         "date": r["date"],
         "summary": r["summary"],
         "cover": r["cover"],
-        "featured": bool(r["featured"]),
         "issue": int(r["issue"]) if "issue" in r.keys() else 0,
         "pullQuote": r["pullQuote"],
         "body": body,
@@ -224,7 +223,6 @@ def seed_articles_if_empty():
                 "date": now,
                 "summary": "Discimus Scribendo — the new home for student journalism at HAFS.",
                 "cover": "",
-                "featured": True,
                 "issue": 1,
                 "pullQuote": "We don’t chase certainty; we chase clarity.",
                 "body": [
@@ -312,7 +310,7 @@ def upsert_article(a: Dict[str, Any], connection: Optional[sqlite3.Connection] =
             (a.get("date") or "").strip(),
             (a.get("summary") or "").strip(),
             (a.get("cover") or "").strip(),
-            1 if a.get("featured") else 0,
+            0,
             issue_val,
             (a.get("pullQuote") or "").strip(),
             json.dumps(body_list, ensure_ascii=False),
@@ -500,7 +498,6 @@ def create_app() -> Flask:
             flash("ID (slug) is required.", "error")
             return redirect(url_for("admin_new"))
 
-        featured = request.form.get("featured") == "on"
         try:
             issue = int((request.form.get("issue") or "0").strip() or "0")
         except ValueError:
@@ -529,7 +526,6 @@ def create_app() -> Flask:
             "date": (request.form.get("date") or "").strip(),
             "summary": (request.form.get("summary") or "").strip(),
             "cover": cover_path,
-            "featured": featured,
             "issue": issue,
             "pullQuote": (request.form.get("pullQuote") or "").strip(),
             "body": body,
