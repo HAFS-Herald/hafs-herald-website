@@ -297,31 +297,26 @@ async function main() {
   if (issueHeadline) issueHeadline.textContent = `Issue #${issueNum ?? "—"}`;
   if (issueDateEl) issueDateEl.textContent = formatDate(issueDate);
 
-  let issueArticles = (issueNum == null)
-    ? [...articles]
-    : articles.filter(a => Number(a.issue) === Number(issueNum));
+let issueArticles = (issueNum == null)
+  ? [...articles]
+  : articles.filter(a => Number(a.issue) === Number(issueNum));
 
-  // If currentIssueNumber is set but your articles don't have matching issue numbers yet,
-  // fall back to showing everything so Featured + Latest still work.
-  if (issueNum != null && issueArticles.length === 0 && articles.length) {
-    issueArticles = [...articles];
-  }
+// (optional but recommended) if issue filter returns nothing, show everything
+if (issueNum != null && issueArticles.length === 0 && articles.length) {
+  issueArticles = [...articles];
+}
 
-  const sortedForFeatured = sortArticles(issueArticles, "newest");
-  renderFeatured(sortedForFeatured);
+function rerender() {
+  const q = normalize(searchInput?.value || "");
+  const mode = sortSelect?.value || "newest";
 
-  function rerender() {
-    const q = normalize(searchInput?.value || "");
-    const mode = sortSelect?.value || "newest";
+  const filtered = issueArticles.filter(a => {
+    const hay = normalize(`${a.title} ${a.summary} ${a.author} ${a.section}`);
+    return q ? hay.includes(q) : true;
+  });
 
-    const filtered = issueArticles.filter(a => {
-      const hay = normalize(`${a.title} ${a.summary} ${a.author} ${a.section}`);
-      return q ? hay.includes(q) : true;
-    });
-
-    const sorted = sortArticles(filtered, mode);
-    renderGrid(sorted);
-  }
+  renderGrid(sortArticles(filtered, mode));
+}
 
   rerender();
 
