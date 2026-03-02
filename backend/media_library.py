@@ -85,8 +85,7 @@ def admin_required(fn):
 
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        # Common pattern: your login sets session["is_admin"]=True
-        if session.get("is_admin") is True:
+        if session.get("authed") is True:
             return fn(*args, **kwargs)
         abort(403)
     return wrapper
