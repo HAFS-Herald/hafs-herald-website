@@ -688,7 +688,7 @@ def create_app() -> Flask:
             # keep it safe: only simple folder names
             if not re.match(r"^[A-Za-z0-9_-]{1,40}$", subdir):
                 flash("Bad folder name.", "error")
-                return redirect(url_for("admin_media"))
+                return redirect(url_for("media.media_index"))
             target_dir = (UPLOAD_DIR / subdir)
         else:
             target_dir = UPLOAD_DIR
@@ -700,7 +700,7 @@ def create_app() -> Flask:
         files = request.files.getlist("files")
         if not files:
             flash("No files selected.", "error")
-            return redirect(url_for("admin_media"))
+            return redirect(url_for("media.media_index"))
 
         saved = 0
         skipped = 0
@@ -734,7 +734,7 @@ def create_app() -> Flask:
             saved += 1
 
         flash(f"Uploaded {saved} file(s). Skipped {skipped}.", "ok" if saved else "error")
-        return redirect(url_for("admin_media"))
+        return redirect(url_for("media.media_index"))
     
 
     return app
