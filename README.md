@@ -27,3 +27,16 @@ This repo is split into:
 - Subscribers: `/admin/subscribers`
 - Tips inbox: `/admin/tips`
 
+
+## Drafts
+- New articles start as **Draft** and are only visible in admin. Use **Preview** to check them.
+- Set Status to **Published** and save to put an article on the site.
+
+## Backups
+- The database is copied automatically once a day to `/data/backups` (last 14 kept; change with `BACKUP_KEEP`).
+- `/admin/backups` has **Back up now**, **Restore** (the current state is saved first), and **Download everything (.zip)**
+  with the database and all uploaded images. Download that now and then and keep it off Railway (e.g. Google Drive).
+
+## Spam protection
+- The tip and newsletter forms have a hidden trap field for bots and allow 5 submissions per visitor per hour.
+- Visitors are tracked only as a hashed ID kept for 24 hours, so tips stay anonymous.

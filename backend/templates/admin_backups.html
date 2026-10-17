@@ -1,0 +1,64 @@
+{% extends "admin_base.html" %}
+{% block content %}
+  <div class="admin-top">
+    <div>
+      <h1 class="headline-lg" style="margin:0;">Backups</h1>
+      <div class="muted">A copy of the database is saved automatically once a day (the last {{ keep }} are kept).</div>
+    </div>
+    <div class="links">
+      <a class="btn btn-muted" href="/admin">Back</a>
+      <form method="post" action="/admin/backups/create" style="display:inline;">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <button class="btn" type="submit">Back up now</button>
+      </form>
+      <a class="btn btn-muted" href="/admin/backups/full.zip">Download everything (.zip)</a>
+    </div>
+  </div>
+
+  <p class="help">
+    These backups live on the same Railway volume as the site. To protect against losing the volume itself,
+    use <strong>Download everything</strong> now and then (e.g. once a month) and keep the file somewhere safe
+    like Google Drive. It contains all articles, settings, subscribers, tips and uploaded images.
+  </p>
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Backup</th>
+          <th>Saved (UTC)</th>
+          <th>Size</th>
+          <th style="width: 280px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in backups %}
+          <tr>
+            <td><strong>{{ b.name }}</strong></td>
+            <td>{{ b.mtime | int | timestamp_utc }}</td>
+            <td>{{ (b.size / 1024) | round(1) }} KB</td>
+            <td>
+              <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+                <a class="btn btn-muted" href="/admin/backups/download/{{ b.name }}">Download</a>
+                <form method="post" action="/admin/backups/restore" onsubmit="return confirm('Restore {{ b.name }}? Everything changed since then (articles, settings, subscribers, tips) will be replaced. The current state is backed up first.');">
+                  <input type="hidden" name="csrf" value="{{ csrf }}" />
+                  <input type="hidden" name="name" value="{{ b.name }}" />
+                  <button class="btn btn-muted" type="submit">Restore</button>
+                </form>
+                <form method="post" action="/admin/backups/delete" onsubmit="return confirm('Delete {{ b.name }}?');">
+                  <input type="hidden" name="csrf" value="{{ csrf }}" />
+                  <input type="hidden" name="name" value="{{ b.name }}" />
+                  <button class="btn btn-muted" type="submit">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if not backups %}
+    <p class="muted">No backups yet. The first one is made automatically on the next visit, or click “Back up now”.</p>
+  {% endif %}
+{% endblock %}

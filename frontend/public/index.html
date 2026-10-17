@@ -144,6 +144,9 @@
           <span class="field-label">Email</span>
           <input type="email" required placeholder="name@example.com" />
         </label>
+        <div class="hp-field" aria-hidden="true">
+          <label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+        </div>
         <button class="btn" type="submit">Subscribe</button>
         <p class="form-hint muted" id="newsletterHint">No spam—just issue releases and highlights.</p>
       </form>
@@ -198,6 +201,9 @@
         <span class="field-label">Your tip</span>
         <textarea id="tipMessage" name="message" rows="6" placeholder="What should we investigate?" required></textarea>
       </label>
+      <div class="hp-field" aria-hidden="true">
+        <label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+      </div>
       <div class="modal-actions">
         <button class="btn btn-muted" type="button" id="tipCancel">Cancel</button>
         <button class="btn" type="submit" id="tipSend">Send</button>

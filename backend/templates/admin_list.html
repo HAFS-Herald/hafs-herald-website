@@ -3,7 +3,7 @@
   <div class="admin-top">
     <div>
       <h1 class="headline-lg" style="margin:0;">Articles</h1>
-      <div class="muted">Create, edit, delete, and feature stories.</div>
+      <div class="muted">Drafts are only visible here. Published articles appear on the site.</div>
     </div>
     <div class="links">
       <a class="btn" href="/admin/new">New article</a>
@@ -14,6 +14,8 @@
       <a class="btn btn-muted" href="/admin/settings">Settings</a>
       <a class="btn btn-muted" href="/admin/subscribers">Subscribers</a>
       <a class="btn btn-muted" href="/admin/tips">Tips</a>
+      <a class="btn btn-muted" href="/admin/media">Media</a>
+      <a class="btn btn-muted" href="/admin/backups">Backups</a>
       <a class="btn btn-muted" href="/admin/export.json">Export JSON</a>
     </div>
   </div>
@@ -23,6 +25,7 @@
       <thead>
         <tr>
           <th>Title</th>
+          <th>Status</th>
           <th>Section</th>
           <th>Date</th>
           <th>Issue</th>
@@ -34,6 +37,7 @@
         {% for a in articles %}
           <tr>
             <td><strong>{{ a.title }}</strong><div class="muted small">{{ a.id }}</div></td>
+            <td><span class="status status-{{ a.status }}">{{ "Published" if a.status == "published" else "Draft" }}</span></td>
             <td>{{ a.section }}</td>
             <td>{{ a.date }}</td>
             <td>{{ a.issue }}</td>
@@ -41,6 +45,7 @@
             <td>
               <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
                 <a class="btn btn-muted" href="/admin/edit/{{ a.id }}">Edit</a>
+                <a class="btn btn-muted" href="/admin/preview/{{ a.id }}">Preview</a>
                 <form method="post" action="/admin/delete/{{ a.id }}" onsubmit="return confirm('Delete this article?');">
                   <input type="hidden" name="csrf" value="{{ session.get('csrf') }}" />
                   <button class="btn btn-muted" type="submit">Delete</button>

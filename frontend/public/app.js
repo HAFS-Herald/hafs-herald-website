@@ -157,12 +157,13 @@ function initTipsSubmit() {
     e.preventDefault();
     const message = (tipMessage?.value || "").trim();
     if (!message) return;
+    const website = tipForm.querySelector('input[name="website"]')?.value || "";
 
     try {
       const res = await fetch(`${API}/api/tip`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, website }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Tip failed");
@@ -173,7 +174,7 @@ function initTipsSubmit() {
       setTimeout(() => { try { tipModal.close(); } catch(_) {} }, 600);
     } catch (err) {
       console.error(err);
-      if (tipHint) tipHint.textContent = "Couldn’t send right now. Try again.";
+      if (tipHint) tipHint.textContent = err.message && err.message !== "Tip failed" ? err.message : "Couldn’t send right now. Try again.";
     }
   });
 }
@@ -185,12 +186,13 @@ function initNewsletter() {
     e.preventDefault();
     const email = (emailInput?.value || "").trim();
     if (!email) return;
+    const website = newsletterForm.querySelector('input[name="website"]')?.value || "";
 
     try {
       const res = await fetch(`${API}/api/subscribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, website }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Subscribe failed");
@@ -199,7 +201,7 @@ function initNewsletter() {
       if (emailInput) emailInput.value = "";
     } catch (err) {
       console.error(err);
-      if (newsletterHint) newsletterHint.textContent = "Couldn’t subscribe right now. Try again.";
+      if (newsletterHint) newsletterHint.textContent = err.message && err.message !== "Subscribe failed" ? err.message : "Couldn’t subscribe right now. Try again.";
     }
   });
 }

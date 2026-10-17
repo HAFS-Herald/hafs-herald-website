@@ -7,7 +7,12 @@
     </div>
     <div class="links">
       <a class="btn btn-muted" href="/admin">Back</a>
-      <a class="btn btn-muted" href="/article.html?id={{ a.id }}">View</a>
+      {% if not is_new %}
+        <a class="btn btn-muted" href="/admin/preview/{{ a.id }}">Preview</a>
+        {% if a.status == "published" and public_site_url %}
+          <a class="btn btn-muted" href="{{ public_site_url }}/article.html?id={{ a.id }}">View on site</a>
+        {% endif %}
+      {% endif %}
     </div>
   </div>
 
@@ -36,10 +41,14 @@
           <span class="help">Home page shows the current issue only.</span>
         </label>
 
-        <div class="field">
-          <span class="field-label">Quick link</span>
-          <div class="pill" style="justify-content:flex-start;">article.html?id={{ a.id }}</div>
-        </div>
+        <label class="field">
+          <span class="field-label">Status</span>
+          <select name="status">
+            <option value="draft" {% if a.status != "published" %}selected{% endif %}>Draft — only visible in admin</option>
+            <option value="published" {% if a.status == "published" %}selected{% endif %}>Published — live on the site</option>
+          </select>
+          <span class="help">Use Preview to check a draft before publishing.</span>
+        </label>
       </div>
 
       <label class="field">

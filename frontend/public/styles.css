@@ -719,3 +719,6 @@ textarea{ resize: vertical; }
   object-fit: cover;
   display: block;
 }
+
+/* Spam trap: hidden from people, filled in by bots */
+.hp-field{ position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }

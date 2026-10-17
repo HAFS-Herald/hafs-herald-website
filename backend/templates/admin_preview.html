@@ -1,0 +1,52 @@
+{% extends "admin_base.html" %}
+{% block content %}
+  <div class="admin-top">
+    <div>
+      <span class="status status-{{ a.status }}">{{ "Published" if a.status == "published" else "Draft — not visible on the site" }}</span>
+    </div>
+    <div class="links">
+      <a class="btn btn-muted" href="/admin">Back</a>
+      <a class="btn" href="/admin/edit/{{ a.id }}">Edit</a>
+    </div>
+  </div>
+
+  {% set cover = a.cover if (not a.cover or a.cover.startswith(('/', 'http://', 'https://'))) else '/' ~ a.cover %}
+  <article class="card">
+    <div class="kicker">
+      <span class="tag tag-accent">{{ a.section }}</span>
+      <span>•</span>
+      <span>{{ a.date }}</span>
+    </div>
+
+    <h1>{{ a.title }}</h1>
+
+    <div class="article-meta">
+      <span>By {{ a.author }}</span>
+    </div>
+
+    {% if cover %}
+      <div class="cover">
+        <img src="{{ cover }}" alt="" loading="lazy" />
+      </div>
+    {% endif %}
+
+    <div class="prose">
+      <p class="muted"><em>{{ a.summary }}</em></p>
+      {% if a.pullQuote %}
+        <blockquote>
+          <p style="margin:0;"><strong>{{ a.pullQuote }}</strong></p>
+        </blockquote>
+      {% endif %}
+      {% for b in blocks %}
+        {% if b.img %}
+          <figure class="inline-media">
+            <img src="{{ b.img }}" alt="{{ b.alt }}" loading="lazy" />
+            {% if b.caption %}<figcaption class="muted small">{{ b.caption }}</figcaption>{% endif %}
+          </figure>
+        {% else %}
+          <p>{{ b.text }}</p>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </article>
+{% endblock %}
