@@ -42,6 +42,9 @@ This repo is split into:
 ## Drafts and review
 - New articles start as **Draft**. Writers set **Submit for review** when ready; editors set **Published**.
 - Only published articles appear on the site. Use **Preview** to check anything before it goes live.
+- **Feedback:** in Preview, click 💬 under any paragraph to comment on it (or use the box for the whole article).
+  Writers see open comments on their Edit page and mark them Resolved. The article list shows a 💬 count.
+  Comments never appear on the public site.
 - Article bodies support `**bold**`, `*italic*`, `[links](https://...)`, `## Subheadings` and `- ` lists.
 - Uploaded photos are resized to 1600px and stripped of location data automatically (`MAX_IMAGE_PX` to change).
 

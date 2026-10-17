@@ -383,6 +383,22 @@ def init_db():
         )
         c.execute(
             """
+            CREATE TABLE IF NOT EXISTS comments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id TEXT NOT NULL,
+                block INTEGER NOT NULL,          -- body paragraph index; -1 = whole article
+                quote TEXT NOT NULL,             -- paragraph text when commented, to re-anchor after edits
+                body TEXT NOT NULL,
+                author TEXT NOT NULL,            -- username
+                author_name TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                resolved INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS comments_article ON comments (article_id)")
+        c.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 username TEXT PRIMARY KEY,
                 display_name TEXT NOT NULL,
@@ -576,7 +592,36 @@ def upsert_article(a: Dict[str, Any], connection: Optional[sqlite3.Connection] =
 def delete_article(article_id: str):
     with conn() as c:
         c.execute("DELETE FROM articles WHERE id = ?", (article_id,))
+        c.execute("DELETE FROM comments WHERE article_id = ?", (article_id,))
         c.commit()
+
+
+MAX_COMMENT_CHARS = 2000
+
+
+def anchor_comments(body, comments):
+    """Attach comments to the paragraphs they were written on.
+
+    A comment stays on its paragraph while that paragraph's text is unchanged
+    (even if paragraphs were added above it). Comments whose paragraph was
+    rewritten or removed come back as `orphaned`, shown with the old text.
+    """
+    by_block = {i: [] for i in range(len(body))}
+    general, orphaned = [], []
+    for cm in comments:
+        if cm["block"] < 0:
+            general.append(cm)
+            continue
+        if cm["block"] < len(body) and body[cm["block"]] == cm["quote"]:
+            by_block[cm["block"]].append(cm)
+            continue
+        moved = [i for i, p in enumerate(body) if p == cm["quote"]]
+        if moved:
+            # Closest matching paragraph, in case the same text appears twice
+            by_block[min(moved, key=lambda i: abs(i - cm["block"]))].append(cm)
+        else:
+            orphaned.append(cm)
+    return by_block, general, orphaned
 
 
 def is_valid_email(email: str) -> bool:
@@ -873,9 +918,18 @@ def create_app() -> Flask:
             abort(404)
         return row_to_article(r)
 
+    def load_comments(article_id: str):
+        with conn() as c:
+            return [dict(r) for r in c.execute(
+                "SELECT * FROM comments WHERE article_id = ? ORDER BY created_at, id", (article_id,)).fetchall()]
+
+    def can_view_article(a: Dict[str, Any]) -> bool:
+        return g.user["role"] != "writer" or a.get("created_by") == g.user["username"]
+
     def render_editor(a: Dict[str, Any], is_new: bool):
+        feedback = [] if is_new else [cm for cm in load_comments(a["id"]) if not cm["resolved"]]
         return render_template("admin_edit.html", a=a, sections=SECTIONS, csrf=csrf_token(), is_new=is_new,
-                               can_publish=g.user["role"] in ("editor", "admin"))
+                               can_publish=g.user["role"] in ("editor", "admin"), feedback=feedback)
 
     @app.get("/admin")
     @require_login
@@ -887,8 +941,12 @@ def create_app() -> Flask:
                 # Articles waiting for review first, so editors see them
                 rows = c.execute("SELECT * FROM articles ORDER BY status = 'review' DESC, date DESC").fetchall()
         articles = [row_to_article(r) for r in rows]
+        with conn() as c:
+            open_counts = dict(c.execute(
+                "SELECT article_id, COUNT(*) FROM comments WHERE resolved = 0 GROUP BY article_id").fetchall())
         for a in articles:
             a["editable"] = can_edit_article(g.user, a)
+            a["open_comments"] = open_counts.get(a["id"], 0)
         return render_template("admin_list.html", articles=articles, csrf=csrf_token())
 
     @app.get("/admin/new")
@@ -923,11 +981,75 @@ def create_app() -> Flask:
     @require_login
     def admin_preview(article_id: str):
         a = load_article(article_id)
-        if g.user["role"] == "writer" and a["created_by"] != g.user["username"]:
+        if not can_view_article(a):
             abort(403)
-        blocks = [render_body_block(p) for p in a["body"]]
-        return render_template("admin_preview.html", a=a, blocks=blocks, title=f"Preview: {a['title']}",
-                               editable=can_edit_article(g.user, a))
+        show_resolved = request.args.get("resolved") == "1"
+        comments = [cm for cm in load_comments(article_id) if show_resolved or not cm["resolved"]]
+        by_block, general, orphaned = anchor_comments(a["body"], comments)
+        blocks = [{"i": i, "html": render_body_block(p), "comments": by_block[i]} for i, p in enumerate(a["body"])]
+        resolved_count = sum(1 for cm in load_comments(article_id) if cm["resolved"])
+        return render_template("admin_preview.html", a=a, blocks=blocks, general=general, orphaned=orphaned,
+                               show_resolved=show_resolved, resolved_count=resolved_count, csrf=csrf_token(),
+                               title=f"Preview: {a['title']}", editable=can_edit_article(g.user, a))
+
+    @app.post("/admin/comments/<article_id>")
+    @require_login
+    def admin_comment_add(article_id: str):
+        if not verify_csrf():
+            abort(400)
+        a = load_article(article_id)
+        if not can_view_article(a):
+            abort(403)
+        body = (request.form.get("body") or "").strip()
+        try:
+            block = int(request.form.get("block", "-1"))
+        except ValueError:
+            block = -1
+        if block >= len(a["body"]):
+            block = -1
+        if not body or len(body) > MAX_COMMENT_CHARS:
+            flash(f"Comments must be 1–{MAX_COMMENT_CHARS} characters.", "error")
+        else:
+            with conn() as c:
+                c.execute(
+                    "INSERT INTO comments (article_id, block, quote, body, author, author_name, created_at) VALUES (?,?,?,?,?,?,?)",
+                    (article_id, block, a["body"][block] if block >= 0 else "", body,
+                     g.user["username"], g.user["name"], utc_now_iso()),
+                )
+                c.commit()
+        anchor = f"#block-{block}" if block >= 0 else "#general"
+        return redirect(url_for("admin_preview", article_id=article_id) + anchor)
+
+    @app.post("/admin/comments/<int:cid>/<action>")
+    @require_login
+    def admin_comment_update(cid: int, action: str):
+        if not verify_csrf():
+            abort(400)
+        with conn() as c:
+            cm = c.execute("SELECT * FROM comments WHERE id = ?", (cid,)).fetchone()
+        if not cm:
+            abort(404)
+        a = load_article(cm["article_id"])
+        if not can_view_article(a):
+            abort(403)
+        is_editor = g.user["role"] in ("editor", "admin")
+        with conn() as c:
+            if action in ("resolve", "reopen"):
+                # The commenter, the article's writer, or any editor
+                if not (is_editor or cm["author"] == g.user["username"] or a["created_by"] == g.user["username"]):
+                    abort(403)
+                c.execute("UPDATE comments SET resolved = ? WHERE id = ?", (1 if action == "resolve" else 0, cid))
+            elif action == "delete":
+                if not (is_editor or cm["author"] == g.user["username"]):
+                    abort(403)
+                c.execute("DELETE FROM comments WHERE id = ?", (cid,))
+            else:
+                abort(400)
+            c.commit()
+        back = request.form.get("back") or ""
+        if back.startswith("/admin/"):
+            return redirect(back)
+        return redirect(url_for("admin_preview", article_id=cm["article_id"]))
 
     @app.post("/admin/save")
     @require_login

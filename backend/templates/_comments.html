@@ -1,0 +1,36 @@
+{# One comment card. Used on Preview and Edit pages. #}
+{% macro comment_card(cm, csrf, back, a) %}
+  <div class="comment{% if cm.resolved %} is-resolved{% endif %}">
+    <div class="comment-head">
+      <strong>{{ cm.author_name }}</strong>
+      <span class="muted small">{{ cm.created_at[:16].replace("T", " ") }} UTC{% if cm.resolved %} · resolved{% endif %}</span>
+    </div>
+    <div class="comment-body">{{ cm.body }}</div>
+    <div class="comment-actions">
+      {% set is_editor = user.role in ("editor", "admin") %}
+      {% if is_editor or cm.author == user.username or a.created_by == user.username %}
+        <form method="post" action="/admin/comments/{{ cm.id }}/{{ 'reopen' if cm.resolved else 'resolve' }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}" />
+          <input type="hidden" name="back" value="{{ back }}" />
+          <button class="link-btn" type="submit">{{ "Reopen" if cm.resolved else "Resolve" }}</button>
+        </form>
+      {% endif %}
+      {% if is_editor or cm.author == user.username %}
+        <form method="post" action="/admin/comments/{{ cm.id }}/delete" onsubmit="return confirm('Delete this comment?');">
+          <input type="hidden" name="csrf" value="{{ csrf }}" />
+          <input type="hidden" name="back" value="{{ back }}" />
+          <button class="link-btn" type="submit">Delete</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+{% endmacro %}
+
+{% macro comment_form(article_id, block, csrf, placeholder) %}
+  <form class="comment-form" method="post" action="/admin/comments/{{ article_id }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <input type="hidden" name="block" value="{{ block }}" />
+    <textarea name="body" rows="2" maxlength="2000" required placeholder="{{ placeholder }}"></textarea>
+    <button class="btn" type="submit">Comment</button>
+  </form>
+{% endmacro %}
