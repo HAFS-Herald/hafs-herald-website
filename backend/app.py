@@ -16,7 +16,13 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from flask_cors import CORS
+from markupsafe import Markup, escape
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+try:
+    from PIL import Image, ImageOps
+except ImportError:  # uploads still work, just without resizing
+    Image = None
 
 from flask import (
     Flask,
@@ -75,6 +81,7 @@ STATUSES = ("draft", "published")
 RATE_LIMITS = {"tip": (5, 3600), "subscribe": (5, 3600)}
 MAX_TIP_CHARS = 5000
 ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+MAX_IMAGE_PX = int(os.environ.get("MAX_IMAGE_PX", "1600"))
 
 SECTIONS = [
     "News",
@@ -151,6 +158,86 @@ def safe_filename(name: str) -> str:
     return name or "upload"
 
 
+def save_upload_image(f, target_dir: Path) -> str:
+    """Save an uploaded image resized for the web and return its filename.
+
+    Phone photos are 3–10 MB; this shrinks them to MAX_IMAGE_PX on the long
+    side, fixes rotation, and drops EXIF data (which can include GPS location).
+    Raises ValueError if the file isn't a readable image.
+    """
+    original = safe_filename(f.filename)
+    stem, ext = Path(original).stem, Path(original).suffix.lower()
+    token = secrets.token_hex(6)
+    if ext not in ALLOWED_EXTS:
+        raise ValueError("not an allowed image type")
+
+    if Image is None or ext == ".gif":
+        # GIFs may be animated; keep them as they are
+        name = f"{stem}_{token}{ext}"
+        f.save(target_dir / name)
+        return name
+
+    try:
+        im = Image.open(f.stream)
+        im = ImageOps.exif_transpose(im)
+    except Exception as e:
+        raise ValueError("not a readable image") from e
+
+    im.thumbnail((MAX_IMAGE_PX, MAX_IMAGE_PX))
+    has_alpha = im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info)
+    if ext == ".png" and has_alpha:
+        out_ext, fmt, opts = ".png", "PNG", {"optimize": True}
+        im = im.convert("RGBA")
+    elif ext == ".webp":
+        out_ext, fmt, opts = ".webp", "WEBP", {"quality": 82}
+        im = im.convert("RGBA" if has_alpha else "RGB")
+    else:
+        # Photos saved as PNG get much smaller as JPEG
+        out_ext, fmt, opts = ".jpg", "JPEG", {"quality": 82, "optimize": True, "progressive": True}
+        im = im.convert("RGB")
+
+    name = f"{stem}_{token}{out_ext}"
+    im.save(target_dir / name, fmt, **opts)
+    return name
+
+
+IMAGE_BLOCK_RE = re.compile(r'^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]+)")?\)$')
+LINK_RE = re.compile(r"\[([^\]]+)\]\(((?:https?://|mailto:|/)[^\s)]*)\)")
+BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+ITALIC_RE = re.compile(r"(?<![*\w])\*(?![\s*])(.+?)(?<![\s*])\*(?![*\w])")
+
+
+def format_inline(text: str) -> str:
+    """**bold**, *italic* and [links](https://...) on already-escaped text.
+
+    Mirrors formatInline() in frontend/public/common.js.
+    """
+    s = str(escape(text))
+    s = LINK_RE.sub(r'<a href="\2" target="_blank" rel="noopener">\1</a>', s)
+    s = BOLD_RE.sub(r"<strong>\1</strong>", s)
+    return ITALIC_RE.sub(r"<em>\1</em>", s)
+
+
+def render_body_block(p: str) -> Markup:
+    """One body paragraph to HTML. Mirrors renderBlock() in frontend/public/article.js."""
+    s = (p or "").strip()
+    m = IMAGE_BLOCK_RE.match(s)
+    if m:
+        src = m.group(2)
+        if not re.match(r"^(https?:)?//", src) and not src.startswith("/"):
+            src = "/" + src
+        cap = f'<figcaption class="muted small">{escape(m.group(3))}</figcaption>' if m.group(3) else ""
+        return Markup(
+            f'<figure class="inline-media"><img src="{escape(src)}" alt="{escape(m.group(1))}" loading="lazy" />{cap}</figure>'
+        )
+    if s.startswith("## "):
+        return Markup(f"<h2>{format_inline(s[3:])}</h2>")
+    lines = s.split("\n")
+    if all(re.match(r"^[-*] ", ln) for ln in lines):
+        return Markup("<ul>" + "".join(f"<li>{format_inline(ln[2:])}</li>" for ln in lines) + "</ul>")
+    return Markup(f"<p>{format_inline(s)}</p>")
+
+
 def require_login(fn):
     def wrapper(*args, **kwargs):
         if not session.get("authed"):
@@ -194,6 +281,7 @@ def row_to_article(r: sqlite3.Row) -> Dict[str, Any]:
         "pullQuote": r["pullQuote"],
         "body": body,
         "status": r["status"] if "status" in r.keys() else "published",
+        "correction": r["correction"] if "correction" in r.keys() else "",
         "updated_at": r["updated_at"],
     }
 
@@ -215,7 +303,8 @@ def init_db():
                 pullQuote TEXT NOT NULL,
                 body_json TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'published'
+                status TEXT NOT NULL DEFAULT 'published',
+                correction TEXT NOT NULL DEFAULT ''
             )
             """
         )
@@ -265,6 +354,8 @@ def init_db():
         # Migration: articles saved before drafts existed were all live, so they stay published
         if "status" not in cols:
             c.execute("ALTER TABLE articles ADD COLUMN status TEXT NOT NULL DEFAULT 'published'")
+        if "correction" not in cols:
+            c.execute("ALTER TABLE articles ADD COLUMN correction TEXT NOT NULL DEFAULT ''")
 
         c.commit()
 
@@ -351,8 +442,8 @@ def upsert_article(a: Dict[str, Any], connection: Optional[sqlite3.Connection] =
 
     connection.execute(
         """
-        INSERT INTO articles (id,title,section,author,date,summary,cover,featured,issue,pullQuote,body_json,updated_at,status)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+        INSERT INTO articles (id,title,section,author,date,summary,cover,featured,issue,pullQuote,body_json,updated_at,status,correction)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET
           title=excluded.title,
           section=excluded.section,
@@ -365,7 +456,8 @@ def upsert_article(a: Dict[str, Any], connection: Optional[sqlite3.Connection] =
           pullQuote=excluded.pullQuote,
           body_json=excluded.body_json,
           updated_at=excluded.updated_at,
-          status=excluded.status
+          status=excluded.status,
+          correction=excluded.correction
         """,
         (
             (a.get("id") or "").strip(),
@@ -381,6 +473,7 @@ def upsert_article(a: Dict[str, Any], connection: Optional[sqlite3.Connection] =
             json.dumps(body_list, ensure_ascii=False),
             now,
             status,
+            (a.get("correction") or "").strip(),
         ),
     )
 
@@ -689,16 +782,7 @@ def create_app() -> Flask:
         if not r:
             abort(404)
         a = row_to_article(r)
-        blocks = []
-        for p in a["body"]:
-            m = re.match(r'^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]+)")?\)$', p.strip())
-            if m:
-                src = m.group(2)
-                if not re.match(r"^(https?:)?//", src) and not src.startswith("/"):
-                    src = "/" + src
-                blocks.append({"img": src, "alt": m.group(1), "caption": m.group(3) or ""})
-            else:
-                blocks.append({"text": p})
+        blocks = [render_body_block(p) for p in a["body"]]
         return render_template("admin_preview.html", a=a, blocks=blocks, title=f"Preview: {a['title']}")
 
     @app.post("/admin/save")
@@ -724,15 +808,11 @@ def create_app() -> Flask:
 
         f = request.files.get("cover_upload")
         if f and getattr(f, "filename", ""):
-            filename = safe_filename(f.filename)
-            if Path(filename).suffix.lower() not in ALLOWED_EXTS:
+            try:
+                out_name = save_upload_image(f, UPLOAD_DIR)
+            except ValueError:
                 flash("Cover must be a PNG, JPG, WEBP or GIF image.", "error")
                 return redirect(url_for("admin_new"))
-            stem, _, ext = filename.partition(".")
-            token = secrets.token_hex(6)
-            out_name = f"{stem}_{token}{('.' + ext) if ext else ''}"
-            out_path = UPLOAD_DIR / out_name
-            f.save(out_path)
             cover_path = f"/assets/uploads/{out_name}"
 
         a = {
@@ -747,6 +827,7 @@ def create_app() -> Flask:
             "pullQuote": (request.form.get("pullQuote") or "").strip(),
             "body": body,
             "status": request.form.get("status") if request.form.get("status") in STATUSES else "draft",
+            "correction": (request.form.get("correction") or "").strip(),
         }
         if a["section"] not in SECTIONS:
             a["section"] = "News"
@@ -993,12 +1074,6 @@ def create_app() -> Flask:
             if not f or not getattr(f, "filename", ""):
                 continue
 
-            original = safe_filename(f.filename)
-            ext = Path(original).suffix.lower()
-            if ext not in ALLOWED_EXTS:
-                skipped += 1
-                continue
-
             # size check (best-effort)
             try:
                 f.stream.seek(0, os.SEEK_END)
@@ -1011,10 +1086,11 @@ def create_app() -> Flask:
                 # if we can't measure, still attempt save
                 pass
 
-            stem = Path(original).stem
-            token = secrets.token_hex(6)
-            out_name = f"{stem}_{token}{ext}"
-            f.save(target_dir / out_name)
+            try:
+                save_upload_image(f, target_dir)
+            except ValueError:
+                skipped += 1
+                continue
             saved += 1
 
         flash(f"Uploaded {saved} file(s). Skipped {skipped}.", "ok" if saved else "error")

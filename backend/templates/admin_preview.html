@@ -31,22 +31,16 @@
     {% endif %}
 
     <div class="prose">
+      {% if a.correction %}
+        <div class="correction"><strong>Correction:</strong> {{ a.correction }}</div>
+      {% endif %}
       <p class="muted"><em>{{ a.summary }}</em></p>
       {% if a.pullQuote %}
         <blockquote>
           <p style="margin:0;"><strong>{{ a.pullQuote }}</strong></p>
         </blockquote>
       {% endif %}
-      {% for b in blocks %}
-        {% if b.img %}
-          <figure class="inline-media">
-            <img src="{{ b.img }}" alt="{{ b.alt }}" loading="lazy" />
-            {% if b.caption %}<figcaption class="muted small">{{ b.caption }}</figcaption>{% endif %}
-          </figure>
-        {% else %}
-          <p>{{ b.text }}</p>
-        {% endif %}
-      {% endfor %}
+      {% for b in blocks %}{{ b }}{% endfor %}
     </div>
   </article>
 {% endblock %}

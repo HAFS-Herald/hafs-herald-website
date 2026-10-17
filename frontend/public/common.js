@@ -11,6 +11,15 @@ export function escapeHtml(str) {
     .replaceAll("'", "&#039;");
 }
 
+// **bold**, *italic* and [links](https://...). Escapes first, so it's safe on any text.
+// Mirrors format_inline() in backend/app.py.
+export function formatInline(text) {
+  return escapeHtml(text)
+    .replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:|\/)[^\s)]*)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(?<![*\w])\*(?![\s*])(.+?)(?<![\s*])\*(?![*\w])/g, "<em>$1</em>");
+}
+
 export function normalize(s) {
   return (s || "").toLowerCase().trim();
 }

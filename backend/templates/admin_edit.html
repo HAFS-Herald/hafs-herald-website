@@ -86,7 +86,8 @@
 
         <label class="field">
           <span class="field-label">Upload cover image (png/jpg/webp)</span>
-          <input type="file" name="cover_upload" accept=".png,.jpg,.jpeg,.webp" />
+          <input type="file" name="cover_upload" accept=".png,.jpg,.jpeg,.webp,.gif" />
+          <span class="help">Large photos are resized automatically.</span>
         </label>
       </div>
 
@@ -95,12 +96,30 @@
         <input name="pullQuote" value="{{ a.pullQuote or '' }}" />
       </label>
 
-      <label class="field">
+      <label class="field" for="bodyField">
         <span class="field-label">Body (paragraphs separated by a blank line)</span>
-        <span class="help">To insert an image mid-article, add a paragraph like: <code>![Alt text](assets/uploads/photo.jpg "Caption")</code></span>
-        <textarea name="body" rows="12">{% for p in a.body %}{{ p }}{% if not loop.last %}
+      </label>
+      <div class="format-bar" aria-label="Formatting">
+        <button class="btn btn-muted" type="button" data-wrap="**" title="Bold"><strong>B</strong></button>
+        <button class="btn btn-muted" type="button" data-wrap="*" title="Italic"><em>I</em></button>
+        <button class="btn btn-muted" type="button" data-link title="Link">Link</button>
+        <button class="btn btn-muted" type="button" data-prefix="## " title="Subheading">Heading</button>
+        <button class="btn btn-muted" type="button" data-prefix="- " title="Bulleted list">List</button>
+        <span class="help">
+          <code>**bold**</code> · <code>*italic*</code> · <code>[text](https://…)</code> · <code>## Subheading</code> · lines starting with <code>- </code> make a list ·
+          image: <code>![Description](assets/uploads/photo.jpg "Caption")</code> (copy paths from <a href="/admin/media">Media</a>)
+        </span>
+      </div>
+      <label class="field">
+        <textarea name="body" id="bodyField" rows="14">{% for p in a.body %}{{ p }}{% if not loop.last %}
 
 {% endif %}{% endfor %}</textarea>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Correction (optional)</span>
+        <textarea name="correction" rows="2" placeholder="e.g. An earlier version misstated the date of the concert. It is on Nov. 3.">{{ a.correction or '' }}</textarea>
+        <span class="help">Shown in a box at the top of the article. Leave empty if there's nothing to correct.</span>
       </label>
 
       <div style="display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;">
@@ -109,4 +128,42 @@
       </div>
     </form>
   </div>
+
+  <style>
+    .format-bar{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; margin-top:-.4rem; }
+    .format-bar .btn{ padding:.4rem .7rem; font-size:.9rem; }
+    .format-bar .help{ flex-basis:100%; }
+  </style>
+  <script>
+    (() => {
+      const ta = document.getElementById("bodyField");
+      const replace = (start, end, text, selStart, selEnd) => {
+        ta.setRangeText(text, start, end, "end");
+        ta.setSelectionRange(selStart, selEnd);
+        ta.focus();
+      };
+      document.querySelectorAll(".format-bar [data-wrap]").forEach((btn) => btn.addEventListener("click", () => {
+        const w = btn.dataset.wrap, { selectionStart: a, selectionEnd: b } = ta;
+        const sel = ta.value.slice(a, b) || "text";
+        replace(a, b, w + sel + w, a + w.length, a + w.length + sel.length);
+      }));
+      document.querySelector(".format-bar [data-link]").addEventListener("click", () => {
+        const url = prompt("Link address (https://…)", "https://");
+        if (!url) return;
+        const { selectionStart: a, selectionEnd: b } = ta;
+        const sel = ta.value.slice(a, b) || "link text";
+        replace(a, b, `[${sel}](${url})`, a + 1, a + 1 + sel.length);
+      });
+      document.querySelectorAll(".format-bar [data-prefix]").forEach((btn) => btn.addEventListener("click", () => {
+        // Apply to every line touched by the selection
+        const p = btn.dataset.prefix;
+        const start = ta.value.lastIndexOf("\n", ta.selectionStart - 1) + 1;
+        let end = ta.value.indexOf("\n", ta.selectionEnd);
+        if (end === -1) end = ta.value.length;
+        const lines = ta.value.slice(start, end).split("\n").map((ln) => (ln.startsWith(p) ? ln : p + ln));
+        const text = lines.join("\n");
+        replace(start, end, text, start, start + text.length);
+      }));
+    })();
+  </script>
 {% endblock %}

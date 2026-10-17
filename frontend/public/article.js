@@ -1,5 +1,5 @@
 import { loadContent } from "./content.js";
-import { $, escapeHtml, formatDate, initPage, readingTime, setTopbar, showLoadError } from "./common.js";
+import { $, escapeHtml, formatDate, formatInline, initPage, readingTime, setTopbar, showLoadError } from "./common.js";
 
 const articleRoot = $("#articleRoot");
 const relatedList = $("#relatedList");
@@ -19,7 +19,12 @@ function renderBlock(p) {
       </figure>
     `;
   }
-  return `<p>${escapeHtml(s)}</p>`;
+  if (s.startsWith("## ")) return `<h2>${formatInline(s.slice(3))}</h2>`;
+  const lines = s.split("\n");
+  if (lines.every((ln) => /^[-*] /.test(ln))) {
+    return `<ul>${lines.map((ln) => `<li>${formatInline(ln.slice(2))}</li>`).join("")}</ul>`;
+  }
+  return `<p>${formatInline(s)}</p>`;
 }
 
 function renderArticle(a) {
@@ -47,6 +52,7 @@ function renderArticle(a) {
     ${a.cover ? `<div class="cover"><img src="${escapeHtml(a.cover)}" alt="" loading="lazy" /></div>` : ""}
 
     <div class="prose">
+      ${a.correction ? `<div class="correction"><strong>Correction:</strong> ${escapeHtml(a.correction)}</div>` : ""}
       <p class="muted"><em>${escapeHtml(a.summary || "")}</em></p>
       ${pull}
       ${(a.body || []).map(renderBlock).join("")}
