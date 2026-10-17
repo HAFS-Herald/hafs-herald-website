@@ -1,4 +1,5 @@
 {% extends "admin_base.html" %}
+{% from "_article_nav.html" import article_nav with context %}
 {% block content %}
   <style>
     .history{ display:grid; grid-template-columns: 280px 1fr; gap: 1rem; align-items:start; }
@@ -15,19 +16,10 @@
     .diff-para.added{ background: color-mix(in oklab, #2e9d4f 12%, transparent); }
     .diff-para.removed{ background: color-mix(in oklab, #d1453b 10%, transparent); text-decoration: line-through; }
     .diff-field{ margin:.3rem 0; }
-    .tabs{ display:flex; gap:.4rem; flex-wrap:wrap; margin:.4rem 0 1rem 0; }
+    .diff-actions{ display:flex; gap:.4rem; flex-wrap:wrap; margin:0 0 1rem 0; }
   </style>
 
-  <div class="admin-top">
-    <div>
-      <h1 class="headline-lg" style="margin:0;">History</h1>
-      <div class="muted">{{ a.title }}</div>
-    </div>
-    <div class="links">
-      <a class="btn btn-muted" href="/admin/preview/{{ a.id }}">Preview</a>
-      {% if editable %}<a class="btn" href="/admin/edit/{{ a.id }}">Edit</a>{% endif %}
-    </div>
-  </div>
+  {{ article_nav(a, "history", editable) }}
 
   {% if not revs %}
     <div class="card"><p class="muted" style="margin:0;">No saved versions yet. Every save from now on is kept here.</p></div>
@@ -46,7 +38,7 @@
     </div>
 
     <div class="card diff">
-      <div class="tabs">
+      <div class="diff-actions">
         <a class="btn {{ 'btn-muted' if vs_current else '' }}" href="?rev={{ selected.id }}">Changes in this save</a>
         <a class="btn {{ '' if vs_current else 'btn-muted' }}" href="?rev={{ selected.id }}&vs=current">Compare with current</a>
         {% if editable %}

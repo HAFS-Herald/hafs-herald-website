@@ -1,21 +1,12 @@
 {% extends "admin_base.html" %}
+{% from "_article_nav.html" import article_nav with context %}
 {% block content %}
-  <div class="admin-top">
-    <div>
-      <h1 class="headline-lg" style="margin:0;">{% if is_new %}New article{% else %}Edit article{% endif %}</h1>
-      <div class="muted">ID is the URL slug: <code>article.html?id=ID</code>.</div>
-    </div>
-    <div class="links">
-      <a class="btn btn-muted" href="/admin">Back</a>
-      {% if not is_new %}
-        <a class="btn btn-muted" href="/admin/preview/{{ a.id }}">Preview</a>
-        <a class="btn btn-muted" href="/admin/history/{{ a.id }}">History</a>
-        {% if a.status == "published" and public_site_url %}
-          <a class="btn btn-muted" href="{{ public_site_url }}/article.html?id={{ a.id }}">View on site</a>
-        {% endif %}
-      {% endif %}
-    </div>
-  </div>
+  {% if is_new %}
+    <div class="crumbs"><a href="/admin">{{ "My articles" if user.role == "writer" else "Articles" }}</a> <span aria-hidden="true">›</span> New</div>
+    <h1 class="headline-lg page-title" style="margin-bottom:1rem;">New article</h1>
+  {% else %}
+    {{ article_nav(a, "edit", True) }}
+  {% endif %}
 
   {% if feedback %}
     {% from "_comments.html" import comment_card with context %}
@@ -157,10 +148,10 @@
         <span class="help">Shown in a box at the top of the article. Leave empty if there's nothing to correct.</span>
       </label>
 
-      <div style="display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;">
+      <div class="save-bar">
         <button class="btn" type="submit">Save</button>
+        {% if not is_new %}<a class="btn btn-muted" href="/admin/preview/{{ a.id }}">Preview</a>{% endif %}
         <span class="help" id="autosaveStatus"></span>
-        <a class="btn btn-muted" href="/admin">Cancel</a>
       </div>
     </form>
   </div>
@@ -171,6 +162,10 @@
     .feedback-card .comment-body{ white-space: pre-wrap; margin:.25rem 0; }
     .feedback-card .comment-actions{ display:flex; gap:.8rem; }
     .link-btn{ background:none; border:0; padding:0; color: var(--muted); font: inherit; font-size:.85rem; cursor:pointer; text-decoration: underline; }
+    /* Save stays on screen while scrolling a long article */
+    .save-bar{ position: sticky; bottom: 0; z-index: 5; display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;
+      margin: 0 -1rem -1rem; padding: .7rem 1rem; border-top: 1px solid var(--border);
+      background: color-mix(in oklab, var(--bg) 92%, transparent); backdrop-filter: blur(6px); border-radius: 0 0 var(--radius) var(--radius); }
     .lead-check{ display:flex; gap:.6rem; align-items:flex-start; padding:.7rem .8rem; border:1px solid var(--border); border-radius: 14px; }
     .lead-check input{ width:auto; margin-top:.25rem; }
     .autosave-banner{ display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; padding:.7rem .9rem; margin-bottom:1rem;

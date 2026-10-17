@@ -879,7 +879,24 @@ def create_app() -> Flask:
             "user": g.get("user"),
             "status_labels": STATUS_LABELS,
             "role_labels": ROLE_LABELS,
+            "nav": nav_counts(),
         }
+
+    def nav_counts() -> Dict[str, int]:
+        """Badges in the admin nav: what's waiting for this person."""
+        user = g.get("user")
+        if not user:
+            return {}
+        with conn() as c:
+            if user["role"] == "writer":
+                feedback = c.execute(
+                    """SELECT COUNT(*) FROM comments JOIN articles ON articles.id = comments.article_id
+                       WHERE comments.resolved = 0 AND articles.created_by = ?""", (user["username"],)).fetchone()[0]
+                return {"feedback": feedback}
+            return {
+                "review": c.execute("SELECT COUNT(*) FROM articles WHERE status = 'review'").fetchone()[0],
+                "tips": c.execute("SELECT COUNT(*) FROM tips WHERE status = 'new'").fetchone()[0],
+            }
 
     @app.get("/")
     def home():
@@ -1031,7 +1048,17 @@ def create_app() -> Flask:
         for a in articles:
             a["editable"] = can_edit_article(g.user, a)
             a["open_comments"] = open_counts.get(a["id"], 0)
-        return render_template("admin_list.html", articles=articles, csrf=csrf_token())
+        counts = {k: sum(1 for a in articles if a["status"] == k) for k in STATUSES}
+        counts["all"] = len(articles)
+        # Editors land on the review queue when something is waiting
+        default = "review" if g.user["role"] != "writer" and counts["review"] else "all"
+        show = request.args.get("show", default)
+        if show in STATUSES:
+            articles = [a for a in articles if a["status"] == show]
+        else:
+            show = "all"
+        return render_template("admin_list.html", articles=articles, counts=counts, show=show, csrf=csrf_token(),
+                               title="Articles")
 
     @app.get("/admin/new")
     @require_login
@@ -1435,7 +1462,12 @@ def create_app() -> Flask:
         with conn() as c:
             rows = c.execute("SELECT * FROM tips ORDER BY created_at DESC").fetchall()
         tips = [dict(r) for r in rows]
-        return render_template("admin_tips.html", tips=tips, csrf=csrf_token())
+        counts = {k: sum(1 for t in tips if t["status"] == k) for k in ("new", "read", "resolved")}
+        counts["all"] = len(tips)
+        show = request.args.get("show", "new" if counts["new"] else "all")
+        if show != "all":
+            tips = [t for t in tips if t["status"] == show]
+        return render_template("admin_tips.html", tips=tips, counts=counts, show=show, csrf=csrf_token(), title="Tips")
 
     @app.post("/admin/tips/mark/<int:tid>")
     @require_editor
@@ -1449,7 +1481,7 @@ def create_app() -> Flask:
             c.execute("UPDATE tips SET status = ? WHERE id = ?", (status, tid))
             c.commit()
         flash("Tip updated.", "ok")
-        return redirect(url_for("admin_tips"))
+        return redirect(url_for("admin_tips", show=request.form.get("show") or None))
 
     @app.post("/admin/tips/delete/<int:tid>")
     @require_editor
