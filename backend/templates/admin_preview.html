@@ -11,7 +11,7 @@
   </div>
 
   {% set cover = a.cover if (not a.cover or a.cover.startswith(('/', 'http://', 'https://'))) else '/' ~ a.cover %}
-  <article class="card">
+  <article class="card article">
     <div class="kicker">
       <span class="tag tag-accent">{{ a.section }}</span>
       <span>•</span>

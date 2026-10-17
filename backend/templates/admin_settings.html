@@ -3,7 +3,7 @@
   <div class="admin-top">
     <div>
       <h1 class="headline-lg" style="margin:0;">Settings</h1>
-      <div class="muted">Issue metadata, rotating quotes, and staff page content.</div>
+      <div class="muted">Current issue and staff page content.</div>
     </div>
     <div class="links">
       <a class="btn btn-muted" href="/admin">Back</a>
@@ -27,13 +27,8 @@
       </div>
 
       <label class="field">
-        <span class="field-label">Rotating witty quotes (one per line)</span>
-        <textarea name="wittyQuotes" rows="8">{{ quotes_text }}</textarea>
-      </label>
-
-      <label class="field">
         <span class="field-label">Staff (one per line)</span>
-        <span class="help">Format: <code>Role — Name — Optional contact</code></span>
+        <span class="help">Format: <code>Role - Name - Optional contact</code></span>
         <textarea name="staff" rows="8">{{ staff_text }}</textarea>
       </label>
 

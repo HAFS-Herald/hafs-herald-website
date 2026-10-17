@@ -92,13 +92,6 @@ SECTIONS = [
 DEFAULT_SETTINGS = {
     "currentIssueNumber": 1,
     "currentIssueDate": datetime.now().strftime("%Y-%m-%d"),
-    "wittyQuotes": [
-        "If it’s worth knowing, it’s worth verifying.",
-        "The first draft lies; the second draft argues.",
-        "Small campus, big consequences.",
-        "We report; you decide what it means.",
-        "Conversation is accountability.",
-    ],
     "staff": [
         {"role": "Editor-in-Chief", "name": "Name Here", "contact": ""},
         {"role": "Managing Editor", "name": "Name Here", "contact": ""},
@@ -660,15 +653,6 @@ def create_app() -> Flask:
         articles = [row_to_article(r) for r in rows]
         return render_template("admin_list.html", articles=articles)
 
-    @app.post("/admin/seed")
-    @require_login
-    def admin_seed():
-        if not verify_csrf():
-            abort(400)
-        seed_articles_if_empty()
-        flash("Seeded (if empty).", "ok")
-        return redirect(url_for("admin_index"))
-
     @app.get("/admin/new")
     @require_login
     def admin_new():
@@ -681,7 +665,6 @@ def create_app() -> Flask:
             "date": datetime.now().strftime("%Y-%m-%d"),
             "summary": "",
             "cover": "",
-            "featured": False,
             "issue": int(s.get("currentIssueNumber", 0) or 0),
             "pullQuote": "",
             "body": [],
@@ -845,11 +828,9 @@ def create_app() -> Flask:
             name = (s.get("name") or "").strip()
             contact = (s.get("contact") or "").strip()
             staff_lines.append(f"{role} — {name}" + (f" — {contact}" if contact else ""))
-        quotes_text = "\n".join(settings.get("wittyQuotes", []))
         return render_template(
             "admin_settings.html",
             settings=settings,
-            quotes_text=quotes_text,
             staff_text="\n".join(staff_lines),
             csrf=csrf_token(),
         )
@@ -869,13 +850,13 @@ def create_app() -> Flask:
 
         settings["currentIssueDate"] = (request.form.get("currentIssueDate") or "").strip()
 
-        quotes_text = (request.form.get("wittyQuotes") or "").replace("\r\n", "\n")
-        settings["wittyQuotes"] = [q.strip() for q in quotes_text.split("\n") if q.strip()]
+        settings.pop("wittyQuotes", None)  # retired setting
 
         staff_text = (request.form.get("staff") or "").replace("\r\n", "\n")
         staff = []
         for line in [l.strip() for l in staff_text.split("\n") if l.strip()]:
-            parts = [p.strip() for p in line.split("—")]
+            # "Role — Name — Contact"; plain " - " or "|" also work (easier to type on a phone)
+            parts = [p.strip() for p in re.split(r"\s+[—–-]\s+|\s*[—|]\s*", line)]
             if len(parts) < 2:
                 continue
             role = parts[0]
@@ -888,23 +869,6 @@ def create_app() -> Flask:
         flash("Settings saved.", "ok")
         return redirect(url_for("admin_settings"))
 
-    @app.get("/admin/export.json")
-    @require_login
-    def admin_export():
-        with conn() as c:
-            rows = c.execute("SELECT * FROM articles ORDER BY date DESC").fetchall()
-            subs = c.execute("SELECT * FROM subscribers ORDER BY created_at DESC").fetchall()
-            tips = c.execute("SELECT * FROM tips ORDER BY created_at DESC").fetchall()
-        articles = [row_to_article(r) for r in rows]
-        return jsonify(
-            {
-                "sections": SECTIONS,
-                "articles": articles,
-                "settings": get_settings(),
-                "subscribers": [dict(r) for r in subs],
-                "tips": [dict(r) for r in tips],
-            }
-        )
     # ---------- Admin: backups ----------
     @app.get("/admin/backups")
     @require_login

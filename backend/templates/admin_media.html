@@ -1,84 +1,82 @@
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Media Library</title>
+{% extends "admin_base.html" %}
+{% block content %}
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; }
-    .top { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom: 14px; }
-    input[type="text"] { padding: 8px 10px; min-width: 260px; }
-    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
-    .card { border: 1px solid #ddd; border-radius: 10px; overflow:hidden; }
-    .thumb { aspect-ratio: 16/10; background:#f6f6f6; display:flex; align-items:center; justify-content:center; }
-    .thumb img { width:100%; height:100%; object-fit:cover; }
-    .meta { padding: 10px; font-size: 13px; line-height: 1.35; }
-    .row { display:flex; gap:8px; flex-wrap:wrap; margin-top: 10px; }
-    .btn { padding: 7px 10px; border: 1px solid #ccc; border-radius: 8px; background:#fff; cursor:pointer; }
-    .danger { border-color:#d33; color:#d33; }
-    code { background:#f3f3f3; padding:2px 6px; border-radius:6px; }
-    .badge { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid #ccc; font-size:12px; }
+    .media-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+    .media-card{ padding:0; overflow:hidden; }
+    .media-card .thumb{ aspect-ratio: 16/10; background: var(--panel); border-bottom: 1px solid var(--border); }
+    .media-card .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .media-card .info{ padding: .8rem; display:grid; gap:.3rem; font-size:.92rem; word-break: break-all; }
+    .media-card .actions{ display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.4rem; }
+    .media-card .btn{ padding:.45rem .7rem; font-size:.88rem; }
+    .media-toolbar{ display:flex; gap:.8rem; flex-wrap:wrap; align-items:end; }
+    .media-toolbar .field{ min-width: 220px; }
+    .checkbox{ display:flex; gap:.4rem; align-items:center; color: var(--muted); }
+    .checkbox input{ width:auto; }
   </style>
-</head>
-<body>
-  <h1>Media Library</h1>
 
-  <div class="top">
-    <form method="get" action="/admin/media">
-      <input type="text" name="q" placeholder="Search filename…" value="{{ q }}" />
-      <label style="margin-left:10px;">
-        <input type="checkbox" name="unused" value="1" {% if only_unused %}checked{% endif %}/>
-        show unused (best-effort)
-      </label>
-      <button class="btn" type="submit">Filter</button>
-    </form>
-
-    <span class="badge">Max upload policy: {{ max_mb }}MB</span>
+  <div class="admin-top">
+    <div>
+      <h1 class="headline-lg" style="margin:0;">Media</h1>
+      <div class="muted">Images for covers and articles. Max {{ max_mb }} MB each.</div>
+    </div>
+    <div class="links">
+      <a class="btn btn-muted" href="/admin">Back</a>
+    </div>
   </div>
 
-  <form method="post" action="/admin/media/upload" enctype="multipart/form-data" style="margin: 12px 0;">
-    <input type="hidden" name="csrf" value="{{ csrf }}" />
-    <input type="file" name="files" multiple accept="image/*" />
-    <select name="folder">
-      <option value="">(no folder)</option>
-      <option value="covers">covers</option>
-      <option value="inline">inline</option>
-      <option value="staff">staff</option>
-    </select>
-    <button class="btn" type="submit">Upload</button>
+  <div class="card" style="margin-bottom:1rem;">
+    <form class="media-toolbar" method="post" action="/admin/media/upload" enctype="multipart/form-data">
+      <input type="hidden" name="csrf" value="{{ csrf }}" />
+      <label class="field">
+        <span class="field-label">Images</span>
+        <input type="file" name="files" multiple accept=".png,.jpg,.jpeg,.webp,.gif" />
+      </label>
+      <label class="field">
+        <span class="field-label">Folder</span>
+        <select name="folder">
+          <option value="">(none)</option>
+          <option value="covers">covers</option>
+          <option value="inline">inline</option>
+          <option value="staff">staff</option>
+        </select>
+      </label>
+      <button class="btn" type="submit">Upload</button>
+    </form>
+    <p class="help" style="margin:.8rem 0 0 0;">
+      To put an image inside an article, copy its path and add a paragraph like
+      <code>![Description](assets/uploads/photo.jpg "Caption")</code>
+    </p>
+  </div>
+
+  <form class="media-toolbar" method="get" action="/admin/media" style="margin-bottom:1rem;">
+    <label class="field">
+      <span class="field-label">Search</span>
+      <input type="search" name="q" placeholder="Filename…" value="{{ q }}" />
+    </label>
+    <label class="checkbox">
+      <input type="checkbox" name="unused" value="1" {% if only_unused %}checked{% endif %} />
+      Only unused
+    </label>
+    <button class="btn btn-muted" type="submit">Filter</button>
   </form>
-  
-  <p style="color:#555;">
-    Copy this into articles: <code>assets/uploads/filename.jpg</code>
-  </p>
 
-  <div class="grid">
+  <div class="media-grid">
     {% for f in files %}
-      <div class="card">
-        <div class="thumb">
-          <img src="{{ f.backend_path }}" alt="{{ f.name }}" loading="lazy" />
-        </div>
-        <div class="meta">
-          <div><strong>{{ f.name }}</strong></div>
-          <div>{{ f.size_h }}{% if f.w and f.h %} · {{ f.w }}×{{ f.h }}{% endif %}</div>
-          <div>
-            Used in DB:
-            {% if f.used is none %}<em>unknown</em>
-            {% else %}{{ f.used }}
-            {% endif %}
-          </div>
-          <div style="margin-top:6px;">
-            Article path: <code>{{ f.rel_path }}</code>
-          </div>
-
-          <div class="row">
-            <form method="post" action="/admin/media/delete" onsubmit="return confirm('Delete {{ f.name }}? This can break articles if still referenced.');">
+      <div class="card media-card">
+        <div class="thumb"><img src="{{ f.backend_path }}" alt="{{ f.name }}" loading="lazy" /></div>
+        <div class="info">
+          <strong>{{ f.name }}</strong>
+          <span class="muted">
+            {{ f.size_h }}{% if f.w and f.h %} · {{ f.w }}×{{ f.h }}{% endif %}
+            · {% if f.used is none %}usage unknown{% elif f.used == 0 %}not used{% else %}used {{ f.used }}×{% endif %}
+          </span>
+          <div class="actions">
+            <button class="btn btn-muted" type="button" data-copy="{{ f.rel_path }}">Copy path</button>
+            <form method="post" action="/admin/media/delete" onsubmit="return confirm('Delete {{ f.name }}? Articles that use it will show a broken image.');">
               <input type="hidden" name="csrf" value="{{ csrf }}" />
               <input type="hidden" name="name" value="{{ f.name }}" />
-              <button class="btn danger" type="submit">Delete</button>
+              <button class="btn btn-muted" type="submit">Delete</button>
             </form>
-            <button class="btn" type="button" onclick="navigator.clipboard.writeText('{{ f.rel_path }}')">Copy path</button>
-            <button class="btn" type="button" onclick="navigator.clipboard.writeText(location.origin + '{{ f.backend_path }}')">Copy URL</button>
           </div>
         </div>
       </div>
@@ -86,7 +84,20 @@
   </div>
 
   {% if files|length == 0 %}
-    <p>No uploads found.</p>
+    <p class="muted">No images yet.</p>
   {% endif %}
-</body>
-</html>
+
+  <script>
+    document.querySelectorAll("[data-copy]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(btn.dataset.copy);
+          btn.textContent = "Copied!";
+          setTimeout(() => (btn.textContent = "Copy path"), 1200);
+        } catch {
+          prompt("Copy this path:", btn.dataset.copy);
+        }
+      });
+    });
+  </script>
+{% endblock %}

@@ -142,13 +142,14 @@ def media_index():
     max_mb = int(os.environ.get("MAX_UPLOAD_MB") or MAX_UPLOAD_MB_DEFAULT)
 
     return render_template(
-    "admin_media.html",
-    files=files,
-    q=q,
-    only_unused=only_unused,
-    max_mb=max_mb,
-    csrf=_csrf_token(),
-)
+        "admin_media.html",
+        files=files,
+        q=q,
+        only_unused=only_unused,
+        max_mb=max_mb,
+        csrf=_csrf_token(),
+        title="Media",
+    )
 
 @bp.post("/admin/media/delete")
 @admin_required
@@ -171,17 +172,3 @@ def media_delete():
     p.unlink()
     flash(f"Deleted {name}", "ok")
     return redirect(url_for("media.media_index"))
-
-@bp.post("/admin/media/check")
-@admin_required
-def media_check():
-    """
-    Optional helper: quick rule check endpoint (max size, extension).
-    You can call this from your upload handler before saving.
-    """
-    filename = (request.form.get("filename") or "").strip()
-    ext = Path(filename).suffix.lower()
-    max_mb = int(os.environ.get("MAX_UPLOAD_MB") or MAX_UPLOAD_MB_DEFAULT)
-    if ext not in ALLOWED_EXTS:
-        abort(400, f"File type not allowed: {ext}")
-    return ("OK", 200)

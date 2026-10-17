@@ -7,16 +7,11 @@
     </div>
     <div class="links">
       <a class="btn" href="/admin/new">New article</a>
-      <form method="post" action="/admin/seed" style="display:inline;">
-        <input type="hidden" name="csrf" value="{{ session.get('csrf') }}" />
-        <button class="btn btn-muted" type="submit">Seed (if empty)</button>
-      </form>
       <a class="btn btn-muted" href="/admin/settings">Settings</a>
       <a class="btn btn-muted" href="/admin/subscribers">Subscribers</a>
       <a class="btn btn-muted" href="/admin/tips">Tips</a>
       <a class="btn btn-muted" href="/admin/media">Media</a>
       <a class="btn btn-muted" href="/admin/backups">Backups</a>
-      <a class="btn btn-muted" href="/admin/export.json">Export JSON</a>
     </div>
   </div>
 
@@ -30,7 +25,7 @@
           <th>Date</th>
           <th>Issue</th>
           <th>Author</th>
-          <th style="width: 180px;">Actions</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -43,7 +38,7 @@
             <td>{{ a.issue }}</td>
             <td>{{ a.author }}</td>
             <td>
-              <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+              <div style="display:flex; gap:.4rem; flex-wrap:nowrap;">
                 <a class="btn btn-muted" href="/admin/edit/{{ a.id }}">Edit</a>
                 <a class="btn btn-muted" href="/admin/preview/{{ a.id }}">Preview</a>
                 <form method="post" action="/admin/delete/{{ a.id }}" onsubmit="return confirm('Delete this article?');">
