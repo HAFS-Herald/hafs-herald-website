@@ -54,6 +54,27 @@ export function uniqueYears(articles) {
   return Array.from(new Set(articles.map((a) => yearOf(a.date)))).sort((a, b) => b - a);
 }
 
+// Every issue that has published articles, newest first.
+// The current issue uses its date from Settings; older ones use their latest article's date.
+export function listIssues(articles, settings) {
+  const byIssue = new Map();
+  for (const a of articles) {
+    const n = Number(a.issue);
+    if (!n) continue;
+    if (!byIssue.has(n)) byIssue.set(n, []);
+    byIssue.get(n).push(a);
+  }
+  return Array.from(byIssue.entries())
+    .map(([n, items]) => ({
+      n,
+      items,
+      date: n === Number(settings.currentIssueNumber) && settings.currentIssueDate
+        ? settings.currentIssueDate
+        : items.map((a) => a.date).sort().at(-1),
+    }))
+    .sort((a, b) => b.n - a.n);
+}
+
 export function articleCard(a) {
   const card = document.createElement("div");
   card.className = "card article-card";

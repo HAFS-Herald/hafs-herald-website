@@ -684,6 +684,16 @@ def create_app() -> Flask:
         articles = [row_to_article(r) for r in rows]
         return jsonify({"sections": SECTIONS, "articles": articles, "settings": get_settings()})
 
+    @app.get("/api/article/<article_id>")
+    def api_article(article_id: str):
+        # Used by the Cloudflare Pages function that adds link-preview tags
+        with conn() as c:
+            r = c.execute("SELECT * FROM articles WHERE id = ? AND status = 'published'", (article_id,)).fetchone()
+        if not r:
+            return jsonify({"ok": False, "error": "Not found"}), 404
+        a = row_to_article(r)
+        return jsonify({k: a[k] for k in ("id", "title", "section", "author", "date", "summary", "cover")})
+
     @app.post("/api/subscribe")
     def api_subscribe():
         data = request.get_json(silent=True) or {}

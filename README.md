@@ -22,6 +22,13 @@ This repo is split into:
    - Build command: *(leave blank)*
    - Output directory: `frontend/public`
 
+## Link previews (Cloudflare Pages Functions)
+- `functions/_middleware.js` adds the headline, summary and cover photo to article pages so links shared on
+  KakaoTalk, Instagram, Discord etc. show a proper preview. Cloudflare picks up the `functions/` folder automatically
+  when the Pages project's root directory is the repo root.
+- `frontend/public/_routes.json` limits it to the home and article pages.
+- Optional Pages environment variable `HAFS_API_BASE` if the Railway URL changes (default is the current one).
+
 ## Admin / CMS
 - Admin lives on Railway: `https://YOUR-RAILWAY.../admin`
 - Subscribers: `/admin/subscribers`

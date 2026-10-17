@@ -678,5 +678,16 @@ textarea{ resize: vertical; }
 }
 
 
+/* Issue pages */
+.issue-list{ display:flex; gap:.5rem; flex-wrap:wrap; margin: 0 0 1.2rem 0; }
+.issue-chip{
+  text-decoration: none; color: inherit;
+  display:grid; gap:.1rem; padding:.55rem .85rem; border-radius: 14px;
+  border:1px solid var(--border); background: var(--panel);
+}
+.issue-chip:hover{ border-color: color-mix(in oklab, var(--accent) 40%, var(--border)); }
+.issue-group{ margin: 0 0 1.6rem 0; }
+.issue-group h2{ margin: 0 0 .8rem 0; }
+
 /* Spam trap: hidden from people, filled in by bots */
 .hp-field{ position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }

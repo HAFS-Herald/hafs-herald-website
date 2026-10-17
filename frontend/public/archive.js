@@ -1,5 +1,5 @@
 import { loadContent } from "./content.js";
-import { $, escapeHtml, formatDate, initPage, normalize, setTopbar, showLoadError, sortArticles, uniqueYears, yearOf } from "./common.js";
+import { $, escapeHtml, formatDate, initPage, listIssues, normalize, setTopbar, showLoadError, sortArticles, uniqueYears, yearOf } from "./common.js";
 
 const searchEl = $("#archiveSearch");
 const sectionEl = $("#archiveSection");
@@ -44,6 +44,16 @@ async function main() {
   }
   const { sections, articles, settings } = content;
   setTopbar(settings);
+
+  $("#issues").innerHTML = listIssues(articles, settings)
+    .map(
+      (i) => `
+      <a class="issue-chip" href="issue.html?n=${i.n}">
+        <strong>Issue #${i.n}</strong>
+        <span class="muted small">${formatDate(i.date)} · ${i.items.length} article${i.items.length === 1 ? "" : "s"}</span>
+      </a>`
+    )
+    .join("");
 
   for (const s of sections) sectionEl.add(new Option(s, s));
   for (const y of uniqueYears(articles)) yearEl.add(new Option(String(y), String(y)));
