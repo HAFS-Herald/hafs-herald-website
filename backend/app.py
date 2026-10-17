@@ -6,6 +6,7 @@ import hmac
 import json
 import os
 import re
+import difflib
 import secrets
 import sqlite3
 import tempfile
@@ -343,13 +344,14 @@ def row_to_article(r: sqlite3.Row) -> Dict[str, Any]:
         "body": body,
         "status": r["status"] if "status" in r.keys() else "published",
         "correction": r["correction"] if "correction" in r.keys() else "",
+        "lead": bool(r["featured"]),
         "created_by": r["created_by"] if "created_by" in r.keys() else "",
         "updated_by": r["updated_by"] if "updated_by" in r.keys() else "",
         "updated_at": r["updated_at"],
     }
 
 
-PUBLIC_ARTICLE_FIELDS = ("id", "title", "section", "author", "date", "summary", "cover", "issue", "pullQuote", "body", "correction", "updated_at")
+PUBLIC_ARTICLE_FIELDS = ("id", "title", "section", "author", "date", "summary", "cover", "issue", "pullQuote", "body", "correction", "lead", "updated_at")
 
 
 def public_article(a: Dict[str, Any]) -> Dict[str, Any]:
@@ -397,6 +399,20 @@ def init_db():
             """
         )
         c.execute("CREATE INDEX IF NOT EXISTS comments_article ON comments (article_id)")
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS revisions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id TEXT NOT NULL,
+                saved_at TEXT NOT NULL,
+                saved_by TEXT NOT NULL,          -- display name
+                status TEXT NOT NULL,
+                snapshot_json TEXT NOT NULL,     -- the article's editable fields after this save
+                note TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS revisions_article ON revisions (article_id, id)")
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -572,7 +588,7 @@ def upsert_article(a: Dict[str, Any], connection: Optional[sqlite3.Connection] =
             (a.get("date") or "").strip(),
             (a.get("summary") or "").strip(),
             (a.get("cover") or "").strip(),
-            0,
+            1 if a.get("lead") else 0,
             issue_val,
             (a.get("pullQuote") or "").strip(),
             json.dumps(body_list, ensure_ascii=False),
@@ -593,7 +609,75 @@ def delete_article(article_id: str):
     with conn() as c:
         c.execute("DELETE FROM articles WHERE id = ?", (article_id,))
         c.execute("DELETE FROM comments WHERE article_id = ?", (article_id,))
+        c.execute("DELETE FROM revisions WHERE article_id = ?", (article_id,))
         c.commit()
+
+
+MAX_REVISIONS = int(os.environ.get("MAX_REVISIONS", "50"))
+REVISION_FIELDS = ("title", "section", "author", "date", "summary", "cover", "issue", "pullQuote", "body", "correction")
+REVISION_LABELS = {"title": "Title", "section": "Section", "author": "Author", "date": "Date", "summary": "Summary",
+                   "cover": "Cover image", "issue": "Issue", "pullQuote": "Pull quote", "correction": "Correction"}
+
+
+def record_revision(a: Dict[str, Any], saved_by: str, note: str = ""):
+    """Snapshot an article after a save. Skipped when nothing in the text changed."""
+    snap = {k: a.get(k) for k in REVISION_FIELDS}
+    with conn() as c:
+        last = c.execute("SELECT snapshot_json, status FROM revisions WHERE article_id = ? ORDER BY id DESC LIMIT 1",
+                         (a["id"],)).fetchone()
+        if last and json.loads(last["snapshot_json"]) == snap and last["status"] == a["status"] and not note:
+            return
+        c.execute(
+            "INSERT INTO revisions (article_id, saved_at, saved_by, status, snapshot_json, note) VALUES (?,?,?,?,?,?)",
+            (a["id"], utc_now_iso(), saved_by, a["status"], json.dumps(snap, ensure_ascii=False), note),
+        )
+        # Keep the newest MAX_REVISIONS per article
+        c.execute(
+            """DELETE FROM revisions WHERE article_id = ? AND id NOT IN
+               (SELECT id FROM revisions WHERE article_id = ? ORDER BY id DESC LIMIT ?)""",
+            (a["id"], a["id"], MAX_REVISIONS),
+        )
+        c.commit()
+
+
+def word_diff(old: str, new: str) -> Markup:
+    """Inline word-level diff: removed words in <del>, added words in <ins>."""
+    # Words, spaces and punctuation as separate tokens, so "**10" -> "**11" shows only the number changing
+    tokens = re.compile(r"\w+|\s+|[^\w\s]")
+    a, b = tokens.findall(old or ""), tokens.findall(new or "")
+    out = []
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if op == "equal":
+            out.append(str(escape("".join(a[i1:i2]))))
+            continue
+        if i2 > i1:
+            out.append(f"<del>{escape(''.join(a[i1:i2]))}</del>")
+        if j2 > j1:
+            out.append(f"<ins>{escape(''.join(b[j1:j2]))}</ins>")
+    return Markup("".join(out))
+
+
+def diff_articles(old: Dict[str, Any], new: Dict[str, Any]):
+    """What changed between two snapshots: field changes, then body paragraphs."""
+    fields = []
+    for k in REVISION_FIELDS:
+        if k == "body":
+            continue
+        o, n = str(old.get(k) or ""), str(new.get(k) or "")
+        if o != n:
+            fields.append({"label": REVISION_LABELS[k], "html": word_diff(o, n)})
+    ob, nb = old.get("body") or [], new.get("body") or []
+    paras = []
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, ob, nb, autojunk=False).get_opcodes():
+        if op == "equal":
+            paras.extend({"kind": "same", "html": escape(p)} for p in nb[j1:j2])
+        elif op == "replace" and (i2 - i1) == (j2 - j1):
+            # Same number of paragraphs: show each one's edits inline
+            paras.extend({"kind": "changed", "html": word_diff(o, n)} for o, n in zip(ob[i1:i2], nb[j1:j2]))
+        else:
+            paras.extend({"kind": "removed", "html": escape(p)} for p in ob[i1:i2])
+            paras.extend({"kind": "added", "html": escape(p)} for p in nb[j1:j2])
+    return fields, paras
 
 
 MAX_COMMENT_CHARS = 2000
@@ -992,6 +1076,62 @@ def create_app() -> Flask:
                                show_resolved=show_resolved, resolved_count=resolved_count, csrf=csrf_token(),
                                title=f"Preview: {a['title']}", editable=can_edit_article(g.user, a))
 
+    @app.get("/admin/history/<article_id>")
+    @require_login
+    def admin_history(article_id: str):
+        a = load_article(article_id)
+        if not can_view_article(a):
+            abort(403)
+        with conn() as c:
+            revs = [dict(r) for r in c.execute(
+                "SELECT * FROM revisions WHERE article_id = ? ORDER BY id DESC", (article_id,)).fetchall()]
+        for r in revs:
+            r["snapshot"] = json.loads(r["snapshot_json"])
+
+        current = {k: a.get(k) for k in REVISION_FIELDS}
+        selected = None
+        try:
+            rev_id = int(request.args.get("rev", "0"))
+        except ValueError:
+            rev_id = 0
+        if revs:
+            selected = next((r for r in revs if r["id"] == rev_id), revs[0])
+        fields, paras, against_label = [], [], ""
+        if selected:
+            if request.args.get("vs") == "current":
+                # What changed from this version to now
+                fields, paras = diff_articles(selected["snapshot"], current)
+                against_label = "from this version to the current text"
+            else:
+                idx = revs.index(selected)
+                before = revs[idx + 1]["snapshot"] if idx + 1 < len(revs) else {k: "" for k in REVISION_FIELDS} | {"body": []}
+                fields, paras = diff_articles(before, selected["snapshot"])
+                against_label = "in this save" if idx + 1 < len(revs) else "in the first saved version"
+        return render_template("admin_history.html", a=a, revs=revs, selected=selected, fields=fields, paras=paras,
+                               against_label=against_label, vs_current=request.args.get("vs") == "current",
+                               editable=can_edit_article(g.user, a), csrf=csrf_token(), title=f"History: {a['title']}")
+
+    @app.post("/admin/history/<article_id>/restore/<int:rev_id>")
+    @require_login
+    def admin_history_restore(article_id: str, rev_id: int):
+        if not verify_csrf():
+            abort(400)
+        a = load_article(article_id)
+        if not can_edit_article(g.user, a):
+            abort(403)
+        with conn() as c:
+            r = c.execute("SELECT * FROM revisions WHERE id = ? AND article_id = ?", (rev_id, article_id)).fetchone()
+        if not r:
+            abort(404)
+        # Bring back the text; status, lead and authorship stay as they are now
+        a.update(json.loads(r["snapshot_json"]))
+        a["updated_by"] = g.user["name"]
+        upsert_article(a)
+        saved = r["saved_at"][:16].replace("T", " ")
+        record_revision(a, g.user["name"], note=f"Restored version from {saved} UTC")
+        flash(f"Restored the version from {saved} UTC. The previous text is still in History.", "ok")
+        return redirect(url_for("admin_edit", article_id=article_id))
+
     @app.post("/admin/comments/<article_id>")
     @require_login
     def admin_comment_add(article_id: str):
@@ -1116,7 +1256,27 @@ def create_app() -> Flask:
             except ValueError:
                 return fail("Cover must be a PNG, JPG, WEBP or GIF image.")
 
+        # Only editors pick the lead story; keep the existing choice when a writer saves
+        if g.user["role"] in ("editor", "admin"):
+            a["lead"] = request.form.get("lead") == "1"
+        else:
+            a["lead"] = bool(existing["featured"]) if existing else False
+
+        if existing:
+            with conn() as c:
+                has_history = c.execute("SELECT 1 FROM revisions WHERE article_id = ? LIMIT 1", (article_id,)).fetchone()
+            if not has_history:
+                # Articles from before history existed: keep their old text as the first version
+                before = row_to_article(existing)
+                record_revision(before, before["updated_by"] or "Earlier version", note="Text before history was recorded")
+
         upsert_article(a)
+        if a["lead"]:
+            # One lead per issue
+            with conn() as c:
+                c.execute("UPDATE articles SET featured = 0 WHERE issue = ? AND id != ?", (a["issue"], article_id))
+                c.commit()
+        record_revision(a, g.user["name"])
         flash({
             "published": "Published — it's live on the site.",
             "review": "Submitted for review. An editor will publish it.",
