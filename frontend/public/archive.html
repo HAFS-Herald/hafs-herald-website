@@ -32,6 +32,10 @@
         <button class="icon-btn" id="themeBtn" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
           <span aria-hidden="true">☾</span>
         </button>
+
+        <button class="icon-btn mobile-only" id="menuBtn" type="button" aria-label="Open menu" title="Menu">
+          <span aria-hidden="true">☰</span>
+        </button>
       </div>
     </div>
 
@@ -42,7 +46,6 @@
       <a href="staff.html" class="nav-link">Staff</a>
       <a href="index.html#contact" class="nav-link">Contact</a>
       <div class="nav-spacer" aria-hidden="true"></div>
-      <a href="/admin" class="nav-link nav-cta">Admin</a>
       </nav>
   </header>
 
@@ -50,8 +53,9 @@
     <section class="section">
       <div class="section-head">
         <h1 class="headline-lg">Archive</h1>
-        <p class="muted"><span id="quoteArchive"></span></p>
       </div>
+
+      <div class="issue-list" id="issues" aria-label="Issues"></div>
 
       <div class="archive-controls" aria-label="Archive filters">
         <label class="field">

@@ -1,0 +1,36 @@
+{% extends "admin_base.html" %}
+{% block content %}
+  <div class="admin-top">
+    <div>
+      <h1 class="headline-lg" style="margin:0;">Your account</h1>
+      <div class="muted">{{ user.name }} · {{ role_labels[user.role] }} · username <code>{{ user.username }}</code></div>
+    </div>
+    <div class="links"><a class="btn btn-muted" href="/admin">Back</a></div>
+  </div>
+
+  {% if user.builtin %}
+    <div class="card"><p class="muted" style="margin:0;">
+      This is the built-in admin login. Its password is the <code>HAFS_ADMIN_PASSWORD</code> variable on Railway.
+      Staff should use their own accounts (create them under <a href="/admin/users">Users</a>).
+    </p></div>
+  {% else %}
+    <div class="card" style="max-width: 520px;">
+      <form class="admin-form" method="post" action="/admin/account">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <label class="field">
+          <span class="field-label">Current password</span>
+          <input type="password" name="current" required autocomplete="current-password" />
+        </label>
+        <label class="field">
+          <span class="field-label">New password (at least {{ min_len }} characters)</span>
+          <input type="password" name="new" required minlength="{{ min_len }}" autocomplete="new-password" />
+        </label>
+        <label class="field">
+          <span class="field-label">New password again</span>
+          <input type="password" name="confirm" required minlength="{{ min_len }}" autocomplete="new-password" />
+        </label>
+        <div><button class="btn" type="submit">Change password</button></div>
+      </form>
+    </div>
+  {% endif %}
+{% endblock %}

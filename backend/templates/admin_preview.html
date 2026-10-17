@@ -1,0 +1,46 @@
+{% extends "admin_base.html" %}
+{% block content %}
+  <div class="admin-top">
+    <div>
+      <span class="status status-{{ a.status }}">{{ status_labels[a.status] }}{% if a.status != "published" %} — not visible on the site{% endif %}</span>
+    </div>
+    <div class="links">
+      <a class="btn btn-muted" href="/admin">Back</a>
+      {% if editable %}<a class="btn" href="/admin/edit/{{ a.id }}">Edit</a>{% endif %}
+    </div>
+  </div>
+
+  {% set cover = a.cover if (not a.cover or a.cover.startswith(('/', 'http://', 'https://'))) else '/' ~ a.cover %}
+  <article class="card article">
+    <div class="kicker">
+      <span class="tag tag-accent">{{ a.section }}</span>
+      <span>•</span>
+      <span>{{ a.date }}</span>
+    </div>
+
+    <h1>{{ a.title }}</h1>
+
+    <div class="article-meta">
+      <span>By {{ a.author }}</span>
+    </div>
+
+    {% if cover %}
+      <div class="cover">
+        <img src="{{ cover }}" alt="" loading="lazy" />
+      </div>
+    {% endif %}
+
+    <div class="prose">
+      {% if a.correction %}
+        <div class="correction"><strong>Correction:</strong> {{ a.correction }}</div>
+      {% endif %}
+      <p class="muted"><em>{{ a.summary }}</em></p>
+      {% if a.pullQuote %}
+        <blockquote>
+          <p style="margin:0;"><strong>{{ a.pullQuote }}</strong></p>
+        </blockquote>
+      {% endif %}
+      {% for b in blocks %}{{ b }}{% endfor %}
+    </div>
+  </article>
+{% endblock %}

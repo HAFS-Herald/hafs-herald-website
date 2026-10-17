@@ -7,7 +7,12 @@
     </div>
     <div class="links">
       <a class="btn btn-muted" href="/admin">Back</a>
-      <a class="btn btn-muted" href="/article.html?id={{ a.id }}">View</a>
+      {% if not is_new %}
+        <a class="btn btn-muted" href="/admin/preview/{{ a.id }}">Preview</a>
+        {% if a.status == "published" and public_site_url %}
+          <a class="btn btn-muted" href="{{ public_site_url }}/article.html?id={{ a.id }}">View on site</a>
+        {% endif %}
+      {% endif %}
     </div>
   </div>
 
@@ -20,7 +25,7 @@
         <label class="field">
           <span class="field-label">ID (slug)</span>
           <input name="id" value="{{ a.id }}" {% if not is_new %}readonly{% endif %} placeholder="e.g. policy-school-board" />
-          <span class="help">No spaces. Use dashes.</span>
+          <span class="help">Lowercase letters, numbers and dashes. Becomes the link: <code>article.html?id=…</code>{% if is_new %}. Filled from the title if left empty.{% endif %}</span>
         </label>
 
         <label class="field">
@@ -36,10 +41,19 @@
           <span class="help">Home page shows the current issue only.</span>
         </label>
 
-        <div class="field">
-          <span class="field-label">Quick link</span>
-          <div class="pill" style="justify-content:flex-start;">article.html?id={{ a.id }}</div>
-        </div>
+        <label class="field">
+          <span class="field-label">Status</span>
+          <select name="status">
+            <option value="draft" {% if a.status == "draft" %}selected{% endif %}>Draft — still working on it</option>
+            <option value="review" {% if a.status == "review" %}selected{% endif %}>Submit for review — ready for an editor</option>
+            {% if can_publish %}
+              <option value="published" {% if a.status == "published" %}selected{% endif %}>Published — live on the site</option>
+            {% endif %}
+          </select>
+          <span class="help">
+            {% if can_publish %}Use Preview to check an article before publishing.{% else %}An editor will publish it once it's reviewed.{% endif %}
+          </span>
+        </label>
       </div>
 
       <label class="field">
@@ -77,7 +91,8 @@
 
         <label class="field">
           <span class="field-label">Upload cover image (png/jpg/webp)</span>
-          <input type="file" name="cover_upload" accept=".png,.jpg,.jpeg,.webp" />
+          <input type="file" name="cover_upload" accept=".png,.jpg,.jpeg,.webp,.gif" />
+          <span class="help">Large photos are resized automatically.</span>
         </label>
       </div>
 
@@ -86,12 +101,30 @@
         <input name="pullQuote" value="{{ a.pullQuote or '' }}" />
       </label>
 
-      <label class="field">
+      <label class="field" for="bodyField">
         <span class="field-label">Body (paragraphs separated by a blank line)</span>
-        <span class="help">To insert an image mid-article, add a paragraph like: <code>![Alt text](assets/uploads/photo.jpg "Caption")</code></span>
-        <textarea name="body" rows="12">{% for p in a.body %}{{ p }}{% if not loop.last %}
+      </label>
+      <div class="format-bar" aria-label="Formatting">
+        <button class="btn btn-muted" type="button" data-wrap="**" title="Bold"><strong>B</strong></button>
+        <button class="btn btn-muted" type="button" data-wrap="*" title="Italic"><em>I</em></button>
+        <button class="btn btn-muted" type="button" data-link title="Link">Link</button>
+        <button class="btn btn-muted" type="button" data-prefix="## " title="Subheading">Heading</button>
+        <button class="btn btn-muted" type="button" data-prefix="- " title="Bulleted list">List</button>
+        <span class="help">
+          <code>**bold**</code> · <code>*italic*</code> · <code>[text](https://…)</code> · <code>## Subheading</code> · lines starting with <code>- </code> make a list ·
+          image: <code>![Description](assets/uploads/photo.jpg "Caption")</code> (copy paths from <a href="/admin/media">Media</a>)
+        </span>
+      </div>
+      <label class="field">
+        <textarea name="body" id="bodyField" rows="14">{% for p in a.body %}{{ p }}{% if not loop.last %}
 
 {% endif %}{% endfor %}</textarea>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Correction (optional)</span>
+        <textarea name="correction" rows="2" placeholder="e.g. An earlier version misstated the date of the concert. It is on Nov. 3.">{{ a.correction or '' }}</textarea>
+        <span class="help">Shown in a box at the top of the article. Leave empty if there's nothing to correct.</span>
       </label>
 
       <div style="display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;">
@@ -100,4 +133,51 @@
       </div>
     </form>
   </div>
+
+  <style>
+    .format-bar{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; margin-top:-.4rem; }
+    .format-bar .btn{ padding:.4rem .7rem; font-size:.9rem; }
+    .format-bar .help{ flex-basis:100%; }
+  </style>
+  <script>
+    (() => {
+      // Suggest an ID from an English title (Korean titles: type one in)
+      const idField = document.querySelector('input[name="id"]:not([readonly])');
+      const titleField = document.querySelector('input[name="title"]');
+      titleField?.addEventListener("blur", () => {
+        if (!idField || idField.value) return;
+        idField.value = titleField.value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+      });
+    })();
+    (() => {
+      const ta = document.getElementById("bodyField");
+      const replace = (start, end, text, selStart, selEnd) => {
+        ta.setRangeText(text, start, end, "end");
+        ta.setSelectionRange(selStart, selEnd);
+        ta.focus();
+      };
+      document.querySelectorAll(".format-bar [data-wrap]").forEach((btn) => btn.addEventListener("click", () => {
+        const w = btn.dataset.wrap, { selectionStart: a, selectionEnd: b } = ta;
+        const sel = ta.value.slice(a, b) || "text";
+        replace(a, b, w + sel + w, a + w.length, a + w.length + sel.length);
+      }));
+      document.querySelector(".format-bar [data-link]").addEventListener("click", () => {
+        const url = prompt("Link address (https://…)", "https://");
+        if (!url) return;
+        const { selectionStart: a, selectionEnd: b } = ta;
+        const sel = ta.value.slice(a, b) || "link text";
+        replace(a, b, `[${sel}](${url})`, a + 1, a + 1 + sel.length);
+      });
+      document.querySelectorAll(".format-bar [data-prefix]").forEach((btn) => btn.addEventListener("click", () => {
+        // Apply to every line touched by the selection
+        const p = btn.dataset.prefix;
+        const start = ta.value.lastIndexOf("\n", ta.selectionStart - 1) + 1;
+        let end = ta.value.indexOf("\n", ta.selectionEnd);
+        if (end === -1) end = ta.value.length;
+        const lines = ta.value.slice(start, end).split("\n").map((ln) => (ln.startsWith(p) ? ln : p + ln));
+        const text = lines.join("\n");
+        replace(start, end, text, start, start + text.length);
+      }));
+    })();
+  </script>
 {% endblock %}

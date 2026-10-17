@@ -1,0 +1,95 @@
+{% extends "admin_base.html" %}
+{% block content %}
+  <div class="admin-top">
+    <div>
+      <h1 class="headline-lg" style="margin:0;">Users</h1>
+      <div class="muted">
+        <strong>Writers</strong> write and submit their own articles ·
+        <strong>Editors</strong> edit and publish everything, read tips, change the current issue ·
+        <strong>Admins</strong> also manage users, subscribers and backups.
+      </div>
+    </div>
+    <div class="links"><a class="btn btn-muted" href="/admin">Back</a></div>
+  </div>
+
+  <div class="card" style="margin-bottom:1rem;">
+    <h2 class="headline-md" style="margin-top:0;">Add someone</h2>
+    <form class="admin-form" method="post" action="/admin/users/create">
+      <input type="hidden" name="csrf" value="{{ csrf }}" />
+      <div class="row">
+        <label class="field">
+          <span class="field-label">Username</span>
+          <input name="username" required pattern="[a-z0-9][a-z0-9._\-]{1,31}" placeholder="e.g. jiwoo.kim" autocapitalize="none" />
+        </label>
+        <label class="field">
+          <span class="field-label">Display name</span>
+          <input name="display_name" required placeholder="e.g. Kim Ji-woo" />
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">
+          <span class="field-label">Role</span>
+          <select name="role">
+            {% for r in roles %}<option value="{{ r }}" {% if r == "writer" %}selected{% endif %}>{{ role_labels[r] }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">Starting password (at least {{ min_len }} characters)</span>
+          <input name="password" required minlength="{{ min_len }}" autocomplete="off" />
+          <span class="help">Tell them to change it under “Account” after signing in.</span>
+        </label>
+      </div>
+      <div><button class="btn" type="submit">Create account</button></div>
+    </form>
+  </div>
+
+  <div class="card" style="padding:0; overflow-x:auto;">
+    <table class="admin-table">
+      <thead>
+        <tr><th>Name</th><th>Role</th><th>Reset password</th><th>Access</th></tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+          <tr{% if not u.active %} style="opacity:.6;"{% endif %}>
+            <td><strong>{{ u.display_name }}</strong><div class="muted small">{{ u.username }}{% if not u.active %} · deactivated{% endif %}</div></td>
+            <td>
+              <form method="post" action="/admin/users/update/{{ u.username }}" style="display:flex; gap:.4rem;">
+                <input type="hidden" name="csrf" value="{{ csrf }}" />
+                <input type="hidden" name="action" value="role" />
+                <select name="role" onchange="this.form.submit()">
+                  {% for r in roles %}<option value="{{ r }}" {% if u.role == r %}selected{% endif %}>{{ role_labels[r] }}</option>{% endfor %}
+                </select>
+              </form>
+            </td>
+            <td>
+              <form method="post" action="/admin/users/update/{{ u.username }}" style="display:flex; gap:.4rem;">
+                <input type="hidden" name="csrf" value="{{ csrf }}" />
+                <input type="hidden" name="action" value="password" />
+                <input name="password" minlength="{{ min_len }}" placeholder="New password" autocomplete="off" required />
+                <button class="btn btn-muted" type="submit">Reset</button>
+              </form>
+            </td>
+            <td>
+              <div style="display:flex; gap:.4rem;">
+                <form method="post" action="/admin/users/update/{{ u.username }}">
+                  <input type="hidden" name="csrf" value="{{ csrf }}" />
+                  <input type="hidden" name="action" value="{{ 'deactivate' if u.active else 'activate' }}" />
+                  <button class="btn btn-muted" type="submit">{{ "Deactivate" if u.active else "Reactivate" }}</button>
+                </form>
+                <form method="post" action="/admin/users/update/{{ u.username }}" onsubmit="return confirm('Delete {{ u.display_name }}’s account? Their articles are kept.');">
+                  <input type="hidden" name="csrf" value="{{ csrf }}" />
+                  <input type="hidden" name="action" value="delete" />
+                  <button class="btn btn-muted" type="submit">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if not users %}
+    <p class="muted">No staff accounts yet. You're using the built-in admin login.</p>
+  {% endif %}
+  <p class="help">When someone graduates or leaves, click Deactivate. Their articles stay on the site.</p>
+{% endblock %}

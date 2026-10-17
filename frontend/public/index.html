@@ -26,7 +26,7 @@
       <div class="topbar-right">
         <div class="masthead-meta" aria-label="Issue info">
           <span class="pill" id="todayPill">Loading date…</span>
-          <span class="pill pill-muted" id="issuePill">Issue #12</span>
+          <span class="pill pill-muted" id="issuePill">Issue #—</span>
         </div>
 
         <button class="icon-btn" id="themeBtn" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
@@ -53,7 +53,7 @@
     <section class="hero hero--stack" aria-label="Top stories">
       <div class="hero-left">
         <h1 class="headline-xl" id="issueHeadline">Issue #—</h1>
-        <p class="lede"><span class="muted">Published:</span> <span id="issueDate">—</span></p>
+        <p class="lede"><span class="muted">Published:</span> <span id="issueDate">—</span> · <a href="archive.html#issues">Past issues →</a></p>
 
 </div>
 
@@ -62,7 +62,6 @@
     <section id="latest" class="section">
       <div class="section-head">
         <h2 class="headline-lg">Latest</h2>
-        <p class="muted"><span id="quoteLatest"></span></p>
       </div>
 
       <div class="grid" id="articlesGrid" aria-live="polite"></div>
@@ -75,7 +74,6 @@
     <section id="sections" class="section">
       <div class="section-head">
         <h2 class="headline-lg">Sections</h2>
-        <p class="muted"><span id="quoteSections"></span></p>
       </div>
 
       
@@ -136,7 +134,6 @@
 <section id="newsletter" class="section">
       <div class="section-head">
         <h2 class="headline-lg">Newsletter</h2>
-        <p class="muted"><span id="quoteNewsletter"></span></p>
       </div>
 
       <form class="newsletter" id="newsletterForm">
@@ -144,6 +141,9 @@
           <span class="field-label">Email</span>
           <input type="email" required placeholder="name@example.com" />
         </label>
+        <div class="hp-field" aria-hidden="true">
+          <label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+        </div>
         <button class="btn" type="submit">Subscribe</button>
         <p class="form-hint muted" id="newsletterHint">No spam—just issue releases and highlights.</p>
       </form>
@@ -152,7 +152,6 @@
     <section id="contact" class="section">
       <div class="section-head">
         <h2 class="headline-lg">Contact</h2>
-        <p class="muted"><span id="quoteContact"></span></p>
       </div>
 
       <div class="contact-grid">
@@ -198,6 +197,9 @@
         <span class="field-label">Your tip</span>
         <textarea id="tipMessage" name="message" rows="6" placeholder="What should we investigate?" required></textarea>
       </label>
+      <div class="hp-field" aria-hidden="true">
+        <label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+      </div>
       <div class="modal-actions">
         <button class="btn btn-muted" type="button" id="tipCancel">Cancel</button>
         <button class="btn" type="submit" id="tipSend">Send</button>

@@ -219,13 +219,6 @@ code{
   max-width: 62ch;
 }
 
-.controls{
-  display: grid;
-  grid-template-columns: 1.2fr .6fr;
-  gap: .8rem;
-  margin: 1rem 0 1rem 0;
-}
-
 .field{
   display: grid;
   gap: .35rem;
@@ -244,14 +237,6 @@ input, select, textarea{
   font: inherit;
 }
 textarea{ resize: vertical; }
-
-.notice{
-  border: 1px dashed color-mix(in oklab, var(--accent) 40%, var(--border));
-  background: color-mix(in oklab, var(--accent) 8%, var(--panel));
-  padding: .9rem 1rem;
-  border-radius: var(--radius);
-  color: var(--text);
-}
 
 .section{
   padding: 1.3rem 0 2rem 0;
@@ -509,6 +494,16 @@ textarea{ resize: vertical; }
   font-size: 1.03rem;
 }
 .prose p{ margin: 0 0 1rem 0; }
+.prose ul{ margin: 0 0 1rem 0; padding-left: 1.3rem; }
+.prose li{ margin: .25rem 0; }
+.prose a{ text-decoration: underline; text-underline-offset: 2px; }
+.correction{
+  margin: 0 0 1rem 0;
+  padding: .8rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in oklab, var(--accent-2) 30%, var(--border));
+  background: color-mix(in oklab, var(--accent-2) 8%, var(--panel));
+}
 .prose h2{
   font-family: var(--serif);
   margin: 1.4rem 0 .6rem 0;
@@ -537,19 +532,11 @@ textarea{ resize: vertical; }
 /* ---------- Responsive ---------- */
 @media (max-width: 920px){
   .hero{ grid-template-columns: 1fr; }
-  .controls{ grid-template-columns: 1fr; }
   .grid{ grid-template-columns: repeat(2, 1fr); }
   .section-cards, .contact-grid{ grid-template-columns: repeat(2, 1fr); }
   .staff-grid{ grid-template-columns: repeat(2, 1fr); }
   .article-page{ grid-template-columns: 1fr; }
   .article-aside{ order: 2; }
-  .featured--wide{grid-template-columns: 1fr;}
-  .featured--wide .media{
-    aspect-ratio: 16 / 9;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    min-height: auto;
-  }
 }
 
 @media (max-width: 620px){
@@ -691,31 +678,16 @@ textarea{ resize: vertical; }
 }
 
 
-/* --- Featured cover: prevent "blank hero" caused by clipping/stacking --- */
-
-/* Don’t clip the whole featured card; clip only the image area */
-.featured{ overflow: visible; }                 /* overrides overflow:hidden */ 
-.featured .media{
-  overflow: hidden;
-  display: block;
-  position: relative;
-  z-index: 0;
+/* Issue pages */
+.issue-list{ display:flex; gap:.5rem; flex-wrap:wrap; margin: 0 0 1.2rem 0; }
+.issue-chip{
+  text-decoration: none; color: inherit;
+  display:grid; gap:.1rem; padding:.55rem .85rem; border-radius: 14px;
+  border:1px solid var(--border); background: var(--panel);
 }
+.issue-chip:hover{ border-color: color-mix(in oklab, var(--accent) 40%, var(--border)); }
+.issue-group{ margin: 0 0 1.6rem 0; }
+.issue-group h2{ margin: 0 0 .8rem 0; }
 
-/* Make sure text always sits above media if anything overlaps */
-.featured .body{
-  position: relative;
-  z-index: 1;
-}
-
-/* Keep rounded corners on the image area */
-.featured .media{ border-radius: var(--radius) var(--radius) 0 0; }
-.featured--wide .media{ border-radius: var(--radius) 0 0 var(--radius); }
-
-/* Ensure the image fills the media box (even if heights get funky) */
-.featured .media img{
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
+/* Spam trap: hidden from people, filled in by bots */
+.hp-field{ position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }

@@ -1,5 +1,4 @@
-// Loads content from the backend CMS if available.
-// If the backend isn't running, falls back to local ./articles.js.
+// Loads content from the backend CMS (Railway).
 //
 // Media (cover images + inline markdown image blocks) are stored as relative paths
 // like /assets/uploads/<file>. When rendering on Cloudflare Pages, those paths
@@ -47,30 +46,21 @@ function rewriteBodyParagraph(p) {
 export async function loadContent() {
   if (_cache) return _cache;
 
-  // Try backend first
-  try {
-    const API = apiBase();
-    const r = await fetch(`${API}/api/content`, { cache: "no-store" });
-    if (!r.ok) throw new Error("Backend unavailable");
-    const data = await r.json();
+  const r = await fetch(`${apiBase()}/api/content`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`Backend returned ${r.status}`);
+  const data = await r.json();
 
-    const articles = (data.articles || []).map((a) => {
-      const copy = { ...a };
-      if (copy.cover) copy.cover = resolveMediaUrl(copy.cover);
-      if (Array.isArray(copy.body)) copy.body = copy.body.map(rewriteBodyParagraph);
-      return copy;
-    });
+  const articles = (data.articles || []).map((a) => {
+    const copy = { ...a };
+    if (copy.cover) copy.cover = resolveMediaUrl(copy.cover);
+    if (Array.isArray(copy.body)) copy.body = copy.body.map(rewriteBodyParagraph);
+    return copy;
+  });
 
-    _cache = {
-      sections: data.sections || [],
-      articles,
-      settings: data.settings || {},
-    };
-    return _cache;
-  } catch (e) {
-    // Fallback to local static content
-    const mod = await import("./articles.js");
-    _cache = { sections: mod.SECTIONS || [], articles: mod.ARTICLES || [], settings: {} };
-    return _cache;
-  }
+  _cache = {
+    sections: data.sections || [],
+    articles,
+    settings: data.settings || {},
+  };
+  return _cache;
 }
