@@ -81,6 +81,15 @@ function uniqueYears(list) {
   return Array.from(years).sort((a,b) => b - a);
 }
 
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function renderGrid(list) {
   grid.innerHTML = "";
   for (const a of list) {
@@ -88,16 +97,16 @@ function renderGrid(list) {
     card.className = "card article-card";
     card.innerHTML = `
       <div class="thumb">
-        ${a.cover ? `<img src="${a.cover}" alt="" loading="lazy">` : ""}
+        ${a.cover ? `<img src="${escapeHtml(a.cover)}" alt="" loading="lazy">` : ""}
       </div>
       <div class="kicker">
-        <span class="tag">${a.section}</span>
+        <span class="tag">${escapeHtml(a.section)}</span>
         <span>•</span>
         <span>${formatDate(a.date)}</span>
       </div>
-      <h3><a class="title-link" href="article.html?id=${encodeURIComponent(a.id)}">${a.title}</a></h3>
-      <p class="muted" style="margin:0;">${a.summary}</p>
-      <div class="meta"><span>By ${a.author}</span></div>
+      <h3><a class="title-link" href="article.html?id=${encodeURIComponent(a.id)}">${escapeHtml(a.title)}</a></h3>
+      <p class="muted" style="margin:0;">${escapeHtml(a.summary)}</p>
+      <div class="meta"><span>By ${escapeHtml(a.author)}</span></div>
     `;
     grid.appendChild(card);
   }

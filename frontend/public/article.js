@@ -101,7 +101,7 @@ function renderBlock(p) {
 
     ${a.cover ? `
       <div class="cover">
-        <img src="${a.cover}" alt="" loading="lazy" />
+        <img src="${escapeHtml(a.cover)}" alt="" loading="lazy" />
       </div>
     ` : ""}
 

@@ -8,8 +8,9 @@ This repo is split into:
 - **Root Directory** is `backend`.
 - **Environment Variables**:
    - `HAFS_ADMIN_PASSWORD` = your admin password
-   - `FLASK_SECRET` = any long random string
-1**Volume** mounted at `/data`.
+   - `FLASK_SECRET` = any long random string (optional; one is generated and kept in the data folder if unset)
+   - `PUBLIC_SITE_URL` = your Cloudflare Pages address (optional; the backend home page and "View site" go there)
+- **Volume** mounted at `/data`, with
    env vars:
    - `DATA_DIR=/data`
    - `DB_PATH=/data/data.sqlite3`

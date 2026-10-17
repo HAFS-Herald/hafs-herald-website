@@ -49,6 +49,15 @@ function initMenu() {
 }
 
 
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 async function main() {
   initTheme();
   initMenu();
@@ -68,11 +77,11 @@ async function main() {
     card.className = "staff-card";
     const initial = (person.name || "?").trim().slice(0,1).toUpperCase();
     card.innerHTML = `
-      <div class="avatar" aria-hidden="true">${initial}</div>
+      <div class="avatar" aria-hidden="true">${escapeHtml(initial)}</div>
       <div>
-        <div class="staff-name">${person.role || ""}</div>
-        <div class="muted">${person.name || ""}</div>
-        ${person.contact ? `<div class="muted small">${person.contact}</div>` : ""}
+        <div class="staff-name">${escapeHtml(person.role || "")}</div>
+        <div class="muted">${escapeHtml(person.name || "")}</div>
+        ${person.contact ? `<div class="muted small">${escapeHtml(person.contact)}</div>` : ""}
       </div>
     `;
     grid.appendChild(card);

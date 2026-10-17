@@ -215,6 +215,15 @@ function sortArticles(list, mode) {
   return copy;
 }
 
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function renderGrid(list) {
   if (!articlesGrid) return;
   articlesGrid.innerHTML = "";
@@ -224,19 +233,19 @@ function renderGrid(list) {
     card.className = "card article-card";
     card.innerHTML = `
       <div class="thumb">
-        ${a.cover ? `<img src="${a.cover}" alt="" loading="lazy">` : ""}
+        ${a.cover ? `<img src="${escapeHtml(a.cover)}" alt="" loading="lazy">` : ""}
       </div>
       <div class="kicker">
-        <span class="tag">${a.section}</span>
+        <span class="tag">${escapeHtml(a.section)}</span>
         <span>•</span>
         <span>${shortDate(a.date)}</span>
       </div>
       <h3>
-        <a class="title-link" href="article.html?id=${encodeURIComponent(a.id)}">${a.title}</a>
+        <a class="title-link" href="article.html?id=${encodeURIComponent(a.id)}">${escapeHtml(a.title)}</a>
       </h3>
-      <p class="muted" style="margin:0;">${a.summary}</p>
+      <p class="muted" style="margin:0;">${escapeHtml(a.summary)}</p>
       <div class="meta">
-        <span>By ${a.author}</span>
+        <span>By ${escapeHtml(a.author)}</span>
         <span>•</span>
         <span>${readingTime((a.body || []).join(" "))}</span>
       </div>

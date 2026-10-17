@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+
+# Runtime data (lives on the Railway volume, not in git)
+backend/data.sqlite3
+backend/uploads/
+backend/.flask_secret

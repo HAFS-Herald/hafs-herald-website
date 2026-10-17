@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Tuple
 import secrets
 from flask import session
 
-from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, send_from_directory, abort
+from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, abort
 
 try:
     from PIL import Image  # pip install Pillow
@@ -21,9 +21,8 @@ ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 MAX_UPLOAD_MB_DEFAULT = 12  # you can override with env var
 
 def _get_upload_dir() -> Path:
-    # Your README uses UPLOAD_DIR=/data/uploads :contentReference[oaicite:1]{index=1}
-    up = os.environ.get("UPLOAD_DIR") or current_app.config.get("UPLOAD_DIR") or "uploads"
-    return Path(up).resolve()
+    # app.py sets this from UPLOAD_DIR, or auto-detects the /data volume
+    return Path(current_app.config["UPLOAD_DIR"]).resolve()
 
 def _csrf_token() -> str:
     tok = session.get("csrf")
@@ -32,8 +31,12 @@ def _csrf_token() -> str:
         session["csrf"] = tok
     return tok
 
+def _verify_csrf() -> bool:
+    form_tok = request.form.get("csrf", "")
+    return bool(form_tok) and secrets.compare_digest(form_tok, session.get("csrf", ""))
+
 def _get_db_path() -> Optional[Path]:
-    db = os.environ.get("DB_PATH") or current_app.config.get("DB_PATH")
+    db = current_app.config.get("DB_PATH")
     return Path(db).resolve() if db else None
 
 def _is_allowed_file(p: Path) -> bool:
@@ -90,13 +93,12 @@ def admin_required(fn):
     If you already have an auth decorator used by /admin, replace this with that.
     """
     from functools import wraps
-    from flask import session
 
     @wraps(fn)
     def wrapper(*args, **kwargs):
         if session.get("authed") is True:
             return fn(*args, **kwargs)
-        abort(403)
+        return redirect(url_for("admin_login", next=request.path))
     return wrapper
 
 @bp.get("/admin/media")
@@ -108,11 +110,13 @@ def media_index():
 
     files: List[Dict] = []
     if upload_dir.exists():
-        for p in sorted(upload_dir.iterdir(), key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True):
+        # rglob so files uploaded into a folder (covers/, inline/, staff/) show up too
+        for p in sorted(upload_dir.rglob("*"), key=lambda x: x.stat().st_mtime if x.exists() else 0, reverse=True):
             if not _is_allowed_file(p):
                 continue
 
-            if q and q not in p.name.lower():
+            rel = p.relative_to(upload_dir).as_posix()
+            if q and q not in rel.lower():
                 continue
 
             size = p.stat().st_size
@@ -122,7 +126,7 @@ def media_index():
                 continue
 
             files.append({
-                "name": p.name,
+                "name": rel,
                 "ext": p.suffix.lower(),
                 "size": size,
                 "size_h": _human_bytes(size),
@@ -130,8 +134,8 @@ def media_index():
                 "w": w,
                 "h": h,
                 "used": used,  # None = unknown
-                "rel_path": f"assets/uploads/{p.name}",
-                "backend_path": f"/assets/uploads/{p.name}",
+                "rel_path": f"assets/uploads/{rel}",
+                "backend_path": f"/assets/uploads/{rel}",
             })
 
     # Simple “policy” values surfaced in UI
@@ -149,13 +153,15 @@ def media_index():
 @bp.post("/admin/media/delete")
 @admin_required
 def media_delete():
+    if not _verify_csrf():
+        abort(400)
     name = (request.form.get("name") or "").strip()
-    if not name or "/" in name or "\\" in name:
+    if not name or "\\" in name:
         abort(400)
 
     upload_dir = _get_upload_dir()
     p = (upload_dir / name).resolve()
-    if upload_dir not in p.parents:
+    if upload_dir not in p.parents or not _is_allowed_file(p):
         abort(400)
 
     if not p.exists():
@@ -179,11 +185,3 @@ def media_check():
     if ext not in ALLOWED_EXTS:
         abort(400, f"File type not allowed: {ext}")
     return ("OK", 200)
-
-@bp.get("/assets/uploads/<path:filename>")
-def serve_upload(filename: str):
-    # Public file serving (from Railway). You can later proxy this via Cloudflare.
-    if ".." in filename:
-        abort(400)
-    upload_dir = _get_upload_dir()
-    return send_from_directory(str(upload_dir), filename, conditional=True)

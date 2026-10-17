@@ -57,6 +57,8 @@ DATA_DIR = _detect_data_dir()
 DB_PATH = Path(os.environ.get("DB_PATH") or str(DATA_DIR / "data.sqlite3"))
 UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR") or str(DATA_DIR / "uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
 SECTIONS = [
     "News",
     "Opinion",
@@ -86,6 +88,41 @@ DEFAULT_SETTINGS = {
         {"role": "Design", "name": "Name Here", "contact": ""},
     ],
 }
+
+
+def load_secret_key() -> str:
+    """Use FLASK_SECRET if set; otherwise keep a generated key in DATA_DIR.
+
+    Gunicorn runs several workers, so a per-process random key would make
+    logins and CSRF tokens fail whenever a request hits a different worker.
+    """
+    env = os.environ.get("FLASK_SECRET")
+    if env:
+        return env
+    key_file = DATA_DIR / ".flask_secret"
+    try:
+        return key_file.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        key = secrets.token_hex(32)
+        try:
+            # O_EXCL so concurrent workers can't each write a different key
+            fd = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(key)
+            return key
+        except FileExistsError:
+            return key_file.read_text(encoding="utf-8").strip()
+
+
+def admin_password() -> str:
+    return os.environ.get("HAFS_ADMIN_PASSWORD") or os.environ.get("ADMIN_PASSWORD") or ""
+
+
+def safe_next(target: str) -> str:
+    # Only allow redirects to paths on this site (blocks //evil.com and https://...)
+    if target.startswith("/") and not target.startswith("//") and "\\" not in target:
+        return target
+    return "/admin"
 
 
 def utc_now_iso() -> str:
@@ -368,13 +405,18 @@ def create_app() -> Flask:
     app = Flask(__name__, static_folder="public", static_url_path="")
     # Allow Cloudflare Pages (different origin) to call /api/*
     CORS(app, resources={r"/api/*": {"origins": "*"}})
-    app.secret_key = os.environ.get("FLASK_SECRET", "dev-" + secrets.token_hex(16))
+    app.secret_key = load_secret_key()
+    app.config["UPLOAD_DIR"] = str(UPLOAD_DIR)
+    app.config["DB_PATH"] = str(DB_PATH)
+    # Per-request cap; the media page uploads several files at once
+    app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_UPLOAD_MB", "12")) * 1024 * 1024 * 4
 
     init_db()
 
     @app.get("/")
     def home():
-        return app.send_static_file("index.html")
+        # The public site lives on Cloudflare Pages; set PUBLIC_SITE_URL to send visitors there.
+        return redirect(os.environ.get("PUBLIC_SITE_URL") or url_for("admin_index"))
 
     @app.get("/favicon.ico")
     def favicon():
@@ -426,12 +468,14 @@ def create_app() -> Flask:
         if not verify_csrf():
             abort(400)
         pwd = request.form.get("password", "")
-        expected = os.environ.get("HAFS_ADMIN_PASSWORD", "changeme")
-        if pwd == expected:
+        expected = admin_password()
+        if not expected:
+            flash("Login is disabled until HAFS_ADMIN_PASSWORD is set on the server.", "error")
+            return redirect(url_for("admin_login"))
+        if secrets.compare_digest(pwd.encode(), expected.encode()):
             session["authed"] = True
             flash("Logged in.", "ok")
-            nxt = request.form.get("next") or "/admin"
-            return redirect(nxt)
+            return redirect(safe_next(request.form.get("next") or "/admin"))
         flash("Wrong password.", "error")
         return redirect(url_for("admin_login"))
 
@@ -511,6 +555,9 @@ def create_app() -> Flask:
         f = request.files.get("cover_upload")
         if f and getattr(f, "filename", ""):
             filename = safe_filename(f.filename)
+            if Path(filename).suffix.lower() not in ALLOWED_EXTS:
+                flash("Cover must be a PNG, JPG, WEBP or GIF image.", "error")
+                return redirect(url_for("admin_new"))
             stem, _, ext = filename.partition(".")
             token = secrets.token_hex(6)
             out_name = f"{stem}_{token}{('.' + ext) if ext else ''}"
@@ -672,9 +719,6 @@ def create_app() -> Flask:
         )
     from media_library import bp as media_bp
     app.register_blueprint(media_bp)
-    from pathlib import Path
-
-    ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
     @app.post("/admin/media/upload")
     @require_login
@@ -709,7 +753,7 @@ def create_app() -> Flask:
             if not f or not getattr(f, "filename", ""):
                 continue
 
-            original = safe_filename(f.filename)  # you already have this helper :contentReference[oaicite:2]{index=2}
+            original = safe_filename(f.filename)
             ext = Path(original).suffix.lower()
             if ext not in ALLOWED_EXTS:
                 skipped += 1
@@ -728,14 +772,14 @@ def create_app() -> Flask:
                 pass
 
             stem = Path(original).stem
-            token = secrets.token_hex(6)  # same collision-avoid pattern you use for cover uploads :contentReference[oaicite:3]{index=3}
+            token = secrets.token_hex(6)
             out_name = f"{stem}_{token}{ext}"
             f.save(target_dir / out_name)
             saved += 1
 
         flash(f"Uploaded {saved} file(s). Skipped {skipped}.", "ok" if saved else "error")
         return redirect(url_for("media.media_index"))
-    
+
 
     return app
 

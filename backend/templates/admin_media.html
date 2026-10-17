@@ -73,6 +73,7 @@
 
           <div class="row">
             <form method="post" action="/admin/media/delete" onsubmit="return confirm('Delete {{ f.name }}? This can break articles if still referenced.');">
+              <input type="hidden" name="csrf" value="{{ csrf }}" />
               <input type="hidden" name="name" value="{{ f.name }}" />
               <button class="btn danger" type="submit">Delete</button>
             </form>
