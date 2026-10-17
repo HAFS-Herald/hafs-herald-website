@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Tuple
 import secrets
 from flask import session
 
-from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, abort
+from flask import Blueprint, current_app, g, render_template, request, redirect, url_for, flash, abort
 
 try:
     from PIL import Image  # pip install Pillow
@@ -88,15 +88,12 @@ def _scan_db_usage(filename: str) -> Optional[int]:
         return None
 
 def admin_required(fn):
-    """
-    IMPORTANT: hook this into your existing admin auth.
-    If you already have an auth decorator used by /admin, replace this with that.
-    """
+    """Any signed-in staff member (app.py resolves g.user before each request)."""
     from functools import wraps
 
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        if session.get("authed") is True:
+        if g.get("user"):
             return fn(*args, **kwargs)
         return redirect(url_for("admin_login", next=request.path))
     return wrapper
@@ -156,6 +153,8 @@ def media_index():
 def media_delete():
     if not _verify_csrf():
         abort(400)
+    if g.user["role"] not in ("editor", "admin"):
+        abort(403)
     name = (request.form.get("name") or "").strip()
     if not name or "\\" in name:
         abort(400)

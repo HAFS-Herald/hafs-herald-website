@@ -25,7 +25,7 @@
         <label class="field">
           <span class="field-label">ID (slug)</span>
           <input name="id" value="{{ a.id }}" {% if not is_new %}readonly{% endif %} placeholder="e.g. policy-school-board" />
-          <span class="help">No spaces. Use dashes.</span>
+          <span class="help">Lowercase letters, numbers and dashes. Becomes the link: <code>article.html?id=…</code>{% if is_new %}. Filled from the title if left empty.{% endif %}</span>
         </label>
 
         <label class="field">
@@ -44,10 +44,15 @@
         <label class="field">
           <span class="field-label">Status</span>
           <select name="status">
-            <option value="draft" {% if a.status != "published" %}selected{% endif %}>Draft — only visible in admin</option>
-            <option value="published" {% if a.status == "published" %}selected{% endif %}>Published — live on the site</option>
+            <option value="draft" {% if a.status == "draft" %}selected{% endif %}>Draft — still working on it</option>
+            <option value="review" {% if a.status == "review" %}selected{% endif %}>Submit for review — ready for an editor</option>
+            {% if can_publish %}
+              <option value="published" {% if a.status == "published" %}selected{% endif %}>Published — live on the site</option>
+            {% endif %}
           </select>
-          <span class="help">Use Preview to check a draft before publishing.</span>
+          <span class="help">
+            {% if can_publish %}Use Preview to check an article before publishing.{% else %}An editor will publish it once it's reviewed.{% endif %}
+          </span>
         </label>
       </div>
 
@@ -135,6 +140,15 @@
     .format-bar .help{ flex-basis:100%; }
   </style>
   <script>
+    (() => {
+      // Suggest an ID from an English title (Korean titles: type one in)
+      const idField = document.querySelector('input[name="id"]:not([readonly])');
+      const titleField = document.querySelector('input[name="title"]');
+      titleField?.addEventListener("blur", () => {
+        if (!idField || idField.value) return;
+        idField.value = titleField.value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+      });
+    })();
     (() => {
       const ta = document.getElementById("bodyField");
       const replace = (start, end, text, selStart, selEnd) => {

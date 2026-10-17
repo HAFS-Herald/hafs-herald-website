@@ -2,20 +2,31 @@
 {% block content %}
   <div class="admin-top">
     <div>
-      <h1 class="headline-lg" style="margin:0;">Articles</h1>
-      <div class="muted">Drafts are only visible here. Published articles appear on the site.</div>
+      <h1 class="headline-lg" style="margin:0;">{{ "My articles" if user.role == "writer" else "Articles" }}</h1>
+      <div class="muted">
+        {% if user.role == "writer" %}
+          Save as Draft while you work, then choose “Submit for review”. An editor publishes it.
+        {% else %}
+          Only Published articles appear on the site. Articles waiting for review are listed first.
+        {% endif %}
+      </div>
     </div>
     <div class="links">
       <a class="btn" href="/admin/new">New article</a>
-      <a class="btn btn-muted" href="/admin/settings">Settings</a>
-      <a class="btn btn-muted" href="/admin/subscribers">Subscribers</a>
-      <a class="btn btn-muted" href="/admin/tips">Tips</a>
       <a class="btn btn-muted" href="/admin/media">Media</a>
-      <a class="btn btn-muted" href="/admin/backups">Backups</a>
+      {% if user.role in ("editor", "admin") %}
+        <a class="btn btn-muted" href="/admin/tips">Tips</a>
+        <a class="btn btn-muted" href="/admin/settings">Settings</a>
+      {% endif %}
+      {% if user.role == "admin" %}
+        <a class="btn btn-muted" href="/admin/subscribers">Subscribers</a>
+        <a class="btn btn-muted" href="/admin/users">Users</a>
+        <a class="btn btn-muted" href="/admin/backups">Backups</a>
+      {% endif %}
     </div>
   </div>
 
-  <div class="card" style="padding:0; overflow:hidden;">
+  <div class="card" style="padding:0; overflow-x:auto;">
     <table class="admin-table">
       <thead>
         <tr>
@@ -31,20 +42,25 @@
       <tbody>
         {% for a in articles %}
           <tr>
-            <td><strong>{{ a.title }}</strong><div class="muted small">{{ a.id }}</div></td>
-            <td><span class="status status-{{ a.status }}">{{ "Published" if a.status == "published" else "Draft" }}</span></td>
+            <td>
+              <strong>{{ a.title }}</strong>
+              <div class="muted small">{{ a.id }}{% if a.updated_by %} · last edited by {{ a.updated_by }}{% endif %}</div>
+            </td>
+            <td><span class="status status-{{ a.status }}">{{ status_labels[a.status] }}</span></td>
             <td>{{ a.section }}</td>
             <td>{{ a.date }}</td>
             <td>{{ a.issue }}</td>
             <td>{{ a.author }}</td>
             <td>
               <div style="display:flex; gap:.4rem; flex-wrap:nowrap;">
-                <a class="btn btn-muted" href="/admin/edit/{{ a.id }}">Edit</a>
+                {% if a.editable %}<a class="btn btn-muted" href="/admin/edit/{{ a.id }}">Edit</a>{% endif %}
                 <a class="btn btn-muted" href="/admin/preview/{{ a.id }}">Preview</a>
-                <form method="post" action="/admin/delete/{{ a.id }}" onsubmit="return confirm('Delete this article?');">
-                  <input type="hidden" name="csrf" value="{{ session.get('csrf') }}" />
-                  <button class="btn btn-muted" type="submit">Delete</button>
-                </form>
+                {% if a.editable %}
+                  <form method="post" action="/admin/delete/{{ a.id }}" onsubmit="return confirm('Delete this article?');">
+                    <input type="hidden" name="csrf" value="{{ csrf }}" />
+                    <button class="btn btn-muted" type="submit">Delete</button>
+                  </form>
+                {% endif %}
               </div>
             </td>
           </tr>
@@ -52,4 +68,7 @@
       </tbody>
     </table>
   </div>
+  {% if not articles %}
+    <p class="muted">No articles yet. Click “New article” to start one.</p>
+  {% endif %}
 {% endblock %}

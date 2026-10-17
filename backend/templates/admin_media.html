@@ -72,11 +72,13 @@
           </span>
           <div class="actions">
             <button class="btn btn-muted" type="button" data-copy="{{ f.rel_path }}">Copy path</button>
+            {% if user.role in ("editor", "admin") %}
             <form method="post" action="/admin/media/delete" onsubmit="return confirm('Delete {{ f.name }}? Articles that use it will show a broken image.');">
               <input type="hidden" name="csrf" value="{{ csrf }}" />
               <input type="hidden" name="name" value="{{ f.name }}" />
               <button class="btn btn-muted" type="submit">Delete</button>
             </form>
+            {% endif %}
           </div>
         </div>
       </div>

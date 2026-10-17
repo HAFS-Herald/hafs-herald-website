@@ -31,13 +31,19 @@ This repo is split into:
 
 ## Admin / CMS
 - Admin lives on Railway: `https://YOUR-RAILWAY.../admin`
-- Subscribers: `/admin/subscribers`
-- Tips inbox: `/admin/tips`
+- Sign in as `admin` with `HAFS_ADMIN_PASSWORD` (the adviser's login, and the way back in if every other account
+  is locked out). Then create staff accounts under **Users**.
+- Roles:
+  - **Writer**: writes their own articles and submits them for review; can't publish
+  - **Editor**: edits and publishes any article, reads tips, sets the current issue and staff list
+  - **Admin**: everything, plus users, subscribers and backups
+- When someone graduates, **Deactivate** them. Their articles stay.
 
-
-## Drafts
-- New articles start as **Draft** and are only visible in admin. Use **Preview** to check them.
-- Set Status to **Published** and save to put an article on the site.
+## Drafts and review
+- New articles start as **Draft**. Writers set **Submit for review** when ready; editors set **Published**.
+- Only published articles appear on the site. Use **Preview** to check anything before it goes live.
+- Article bodies support `**bold**`, `*italic*`, `[links](https://...)`, `## Subheadings` and `- ` lists.
+- Uploaded photos are resized to 1600px and stripped of location data automatically (`MAX_IMAGE_PX` to change).
 
 ## Backups
 - The database is copied automatically once a day to `/data/backups` (last 14 kept; change with `BACKUP_KEEP`).
