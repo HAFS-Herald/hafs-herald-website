@@ -3,7 +3,8 @@
 # Railway blocks outbound SMTP on Trial/Hobby plans, so this uses HTTPS.
 # Configure on Railway:
 #   RESEND_API_KEY = re_...                                   (required to send anything)
-#   MAIL_FROM      = The HAFS Herald <newsletter@hafsherald.com>
+#   MAIL_FROM      = The HAFS Herald <newsletter@hafsherald.com>   (newsletter)
+#   NOTIFY_FROM    = Herald Newsroom <newsroom@hafsherald.com>     (staff notifications; defaults to MAIL_FROM)
 #   MAIL_REPLY_TO  = hafsherald@gmail.com                     (optional)
 # Without RESEND_API_KEY every send is skipped, so the site works the same.
 from __future__ import annotations
@@ -38,8 +39,14 @@ def sender() -> str:
     return os.environ.get("MAIL_FROM") or "The HAFS Herald <newsletter@hafsherald.com>"
 
 
-def _message(to: str, subject: str, html: str, text: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-    msg: Dict[str, Any] = {"from": sender(), "to": [to], "subject": subject, "html": html, "text": text}
+def notify_sender() -> str:
+    """Address for internal staff emails, kept separate from the newsletter's."""
+    return os.environ.get("NOTIFY_FROM") or sender()
+
+
+def _message(to: str, subject: str, html: str, text: str, headers: Optional[Dict[str, str]] = None,
+             from_addr: Optional[str] = None) -> Dict[str, Any]:
+    msg: Dict[str, Any] = {"from": from_addr or sender(), "to": [to], "subject": subject, "html": html, "text": text}
     reply_to = os.environ.get("MAIL_REPLY_TO")
     if reply_to:
         msg["reply_to"] = reply_to
@@ -69,11 +76,12 @@ def _post(path: str, payload: Any) -> Any:
         raise MailError(f"Couldn't reach Resend: {e}") from e
 
 
-def send(to: str, subject: str, html: str, text: str, headers: Optional[Dict[str, str]] = None) -> None:
+def send(to: str, subject: str, html: str, text: str, headers: Optional[Dict[str, str]] = None,
+         from_addr: Optional[str] = None) -> None:
     """Send one email. Raises MailError on failure."""
     if not is_configured():
         raise MailError("Email isn't set up (RESEND_API_KEY is missing).")
-    _post("/emails", _message(to, subject, html, text, headers))
+    _post("/emails", _message(to, subject, html, text, headers, from_addr))
 
 
 def send_batch(messages: List[Dict[str, Any]]) -> None:
@@ -95,7 +103,7 @@ def send_in_background(to: str, subject: str, html: str, text: str) -> None:
 
     def run():
         try:
-            send(to, subject, html, text)
+            send(to, subject, html, text, from_addr=notify_sender())
         except MailError as e:
             print(f"[mail] notification to {to} failed: {e}", flush=True)
 

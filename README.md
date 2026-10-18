@@ -23,11 +23,15 @@ This repo is split into:
    - Output directory: `frontend/public`
 
 ## Email (Resend)
-- Railway variables: `RESEND_API_KEY` (required to send), `MAIL_FROM` (e.g. `The HAFS Herald <newsletter@hafsherald.com>`),
-  optional `MAIL_REPLY_TO`. Without the key nothing is sent and everything else works.
-- **Staff notifications:** each person adds their email under **Account** (or an admin sets it when creating them) and can
-  turn emails off. Editors hear about articles submitted for review and new tips; writers hear about comments and
-  publication. At most one email per person per topic every 30 minutes.
+- Railway variables: `RESEND_API_KEY` (required to send), `MAIL_FROM` (newsletter sender, e.g.
+  `The HAFS Herald <newsletter@hafsherald.com>`), `NOTIFY_FROM` (staff notifications, e.g.
+  `Herald Newsroom <newsroom@hafsherald.com>`; defaults to `MAIL_FROM`), optional `MAIL_REPLY_TO` and `DIGEST_HOUR`
+  (default 18, Korea time). Without the key nothing is sent and everything else works.
+- **Staff notifications:** each person adds their email under **Account** and picks **Daily summary** (default: one
+  email around 6 PM Korea time), **Right away**, or **Off**. Editors hear about articles submitted for review and new
+  tips; writers about comments and publication. The summary leaves out review requests that were already handled.
+  Admins can send summaries early from **Users → Send daily summaries now**. Summaries are triggered by the first visit
+  after `DIGEST_HOUR` (the public site calls the backend on every page view).
 - **Newsletter** (admins): pick an issue, add a note, preview, send a test, then send. Every email has a one-click
   unsubscribe link. Resend's free plan sends 100 emails a day; bigger lists finish with **Continue sending** the next
   day, and nobody gets an issue twice.

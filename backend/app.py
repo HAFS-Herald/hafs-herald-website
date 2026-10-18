@@ -10,6 +10,7 @@ import difflib
 import secrets
 import sqlite3
 import tempfile
+import threading
 import time
 import zipfile
 from datetime import datetime, timedelta, timezone
@@ -300,20 +301,38 @@ NOTIFY_THROTTLE_SECONDS = 30 * 60  # at most one email per recipient per topic i
 def staff_recipients(roles=(), usernames=(), exclude=()) -> List[Dict[str, str]]:
     """Active staff with an email address and notifications on."""
     with conn() as c:
-        rows = c.execute("SELECT username, display_name, role, email FROM users WHERE active = 1 AND notify = 1 AND email != ''").fetchall()
+        rows = c.execute("""SELECT username, display_name, role, email, notify_mode FROM users
+                            WHERE active = 1 AND notify_mode != 'off' AND email != ''""").fetchall()
     return [dict(r) for r in rows
             if (r["role"] in roles or r["username"] in usernames) and r["username"] not in exclude]
 
 
+NOTIFY_MODES = {"daily": "Daily summary", "instant": "Right away", "off": "Off"}
+# The daily summary goes out at this hour, Korea time (UTC+9, no daylight saving)
+DIGEST_HOUR = int(os.environ.get("DIGEST_HOUR", "18"))
+KST = timezone(timedelta(hours=9))
+
+
 def notify(recipients: List[Dict[str, str]], topic: str, subject: str, heading: str, lines: List[str],
-           link: str, link_label: str):
-    """Email staff about something that needs them, skipping anyone emailed about the same topic recently."""
+           link: str, link_label: str, event: Dict[str, str]):
+    """Tell staff about something: queued for their daily summary, or emailed right away if they chose that.
+
+    Immediate emails skip anyone already emailed about the same topic recently.
+    """
     if not mailer.is_configured() or not recipients:
         return
     now = time.time()
     with conn() as c:
         c.execute("DELETE FROM notify_log WHERE ts < ?", (now - 86400,))
+        daily = [r for r in recipients if r.get("notify_mode") == "daily"]
+        c.executemany(
+            """INSERT INTO notify_queue (recipient, kind, article_id, title, actor, detail, link, created_at)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            [(r["username"], event["kind"], event.get("article_id", ""), event.get("title", ""),
+              event.get("actor", ""), event.get("detail", "")[:500], link, utc_now_iso()) for r in daily])
         for r in recipients:
+            if r.get("notify_mode") != "instant":
+                continue
             recent = c.execute("SELECT 1 FROM notify_log WHERE recipient = ? AND key = ? AND ts > ?",
                                (r["username"], topic, now - NOTIFY_THROTTLE_SECONDS)).fetchone()
             if recent:
@@ -506,11 +525,32 @@ def init_db():
             )
             """
         )
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS notify_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                recipient TEXT NOT NULL,         -- username
+                kind TEXT NOT NULL,              -- review | comment | published | tip
+                article_id TEXT NOT NULL DEFAULT '',
+                title TEXT NOT NULL DEFAULT '',
+                actor TEXT NOT NULL DEFAULT '',
+                detail TEXT NOT NULL DEFAULT '',
+                link TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                sent INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        c.execute("CREATE TABLE IF NOT EXISTS digest_runs (day TEXT PRIMARY KEY, started_at TEXT NOT NULL)")
         user_cols = [row["name"] for row in c.execute("PRAGMA table_info(users)").fetchall()]
         if "email" not in user_cols:
             c.execute("ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''")
         if "notify" not in user_cols:
             c.execute("ALTER TABLE users ADD COLUMN notify INTEGER NOT NULL DEFAULT 1")
+        if "notify_mode" not in user_cols:
+            # off | instant | daily. Everyone moves to the daily summary; people who had emails off stay off.
+            c.execute("ALTER TABLE users ADD COLUMN notify_mode TEXT NOT NULL DEFAULT 'daily'")
+            c.execute("UPDATE users SET notify_mode = 'off' WHERE notify = 0")
         # Each subscriber gets a secret token for their unsubscribe link
         sub_cols = [row["name"] for row in c.execute("PRAGMA table_info(subscribers)").fetchall()]
         if "token" not in sub_cols:
@@ -962,7 +1002,138 @@ def create_app() -> Flask:
     @app.before_request
     def _before():
         maybe_daily_backup()
+        maybe_send_digests()
         load_session_user()
+
+    _digest_checked = {"day": None}
+
+    def maybe_send_digests():
+        """Once a day after DIGEST_HOUR (Korea time), send everyone's summary.
+
+        Like the daily backup, this rides on traffic (the public site calls the API on
+        every page view). digest_runs makes sure only one worker sends each day.
+        """
+        if not mailer.is_configured():
+            return
+        now = datetime.now(KST)
+        day = now.strftime("%Y-%m-%d")
+        if now.hour < DIGEST_HOUR or _digest_checked["day"] == day:
+            return
+        _digest_checked["day"] = day
+        with conn() as c:
+            claimed = c.execute("INSERT OR IGNORE INTO digest_runs (day, started_at) VALUES (?, ?)",
+                                (day, utc_now_iso())).rowcount
+            c.commit()
+        if not claimed:
+            return
+        base = request.url_root.rstrip("/")
+
+        def run():
+            with app.app_context():
+                try:
+                    print(f"[mail] daily summaries: {send_digests(base)}", flush=True)
+                except Exception as e:
+                    print(f"[mail] daily summaries failed: {e}", flush=True)
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def send_digests(base: str) -> str:
+        """Email each person a summary of their queued events. Returns a short report."""
+        with conn() as c:
+            rows = [dict(r) for r in c.execute("SELECT * FROM notify_queue WHERE sent = 0 ORDER BY id").fetchall()]
+            review_now = {r[0] for r in c.execute("SELECT id FROM articles WHERE status = 'review'").fetchall()}
+        by_user: Dict[str, List[Dict[str, Any]]] = {}
+        for r in rows:
+            by_user.setdefault(r["recipient"], []).append(r)
+        sent = failed = 0
+        today = datetime.now(KST)
+        date_label = f"{today:%b} {today.day}"
+        for username, events in by_user.items():
+            ids = [e["id"] for e in events]
+            u = get_user(username)
+            # Skip review requests an editor already handled
+            events = [e for e in events if e["kind"] != "review" or e["article_id"] in review_now]
+            if not u or not u["active"] or not u["email"] or u["notify_mode"] != "daily" or not events:
+                mark_sent(ids)
+                continue
+            groups = digest_groups(events)
+            counts = [f"{len(groups['review'])} for review" if groups["review"] else "",
+                      f"{sum(len(a['comments']) for a in groups['comments'])} comments" if groups["comments"] else "",
+                      f"{len(groups['published'])} published" if groups["published"] else "",
+                      f"{len(groups['tips'])} new tips" if groups["tips"] else ""]
+            subject = "Newsroom summary: " + ", ".join(x for x in counts if x)
+            html = render_template("email_digest.html", name=u["display_name"], g_=groups, date=date_label,
+                                   newsroom=base + "/admin", account=base + "/admin/account", tips=base + "/admin/tips")
+            text = digest_text(u["display_name"], groups, base)
+            try:
+                mailer.send(u["email"], subject, html, text, from_addr=mailer.notify_sender())
+                mark_sent(ids)
+                sent += 1
+            except mailer.MailError as e:
+                # Stays queued; tomorrow's summary includes it
+                print(f"[mail] summary for {username} failed: {e}", flush=True)
+                failed += 1
+        return f"{sent} sent, {failed} failed"
+
+    def mark_sent(ids):
+        with conn() as c:
+            c.executemany("UPDATE notify_queue SET sent = 1 WHERE id = ?", [(i,) for i in ids])
+            c.execute("DELETE FROM notify_queue WHERE sent = 1 AND created_at < ?",
+                      ((datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),))
+            c.commit()
+
+    def digest_groups(events):
+        comments: Dict[str, Dict[str, Any]] = {}
+        for e in events:
+            if e["kind"] == "comment":
+                a = comments.setdefault(e["article_id"], {"title": e["title"], "link": e["link"], "comments": [], "people": []})
+                a["comments"].append(e)
+                if e["actor"] not in a["people"]:
+                    a["people"].append(e["actor"])
+        seen = set()
+        review = []
+        for e in events:
+            if e["kind"] == "review" and e["article_id"] not in seen:
+                seen.add(e["article_id"])
+                review.append(e)
+        return {
+            "review": review,
+            "comments": list(comments.values()),
+            "published": [e for e in events if e["kind"] == "published"],
+            "tips": [e for e in events if e["kind"] == "tip"],
+        }
+
+    def digest_text(name, groups, base):
+        out = [f"Hi {name}, here's what happened in the newsroom today.", ""]
+        if groups["review"]:
+            out.append("WAITING FOR REVIEW")
+            out += [f"- {e['title']} (from {e['actor']}): {e['link']}" for e in groups["review"]]
+            out.append("")
+        if groups["comments"]:
+            out.append("COMMENTS")
+            for a in groups["comments"]:
+                out.append(f"- {len(a['comments'])} on “{a['title']}” from {', '.join(a['people'])}: {a['link']}")
+                out.append(f"  Latest: {a['comments'][-1]['detail'][:200]}")
+            out.append("")
+        if groups["published"]:
+            out.append("PUBLISHED")
+            out += [f"- {e['title']} (by {e['actor']}): {e['link']}" for e in groups["published"]]
+            out.append("")
+        if groups["tips"]:
+            out += [f"NEW TIPS: {len(groups['tips'])} — {base}/admin/tips", ""]
+        out.append(f"Change how often you get these: {base}/admin/account")
+        return "\n".join(out)
+
+    @app.post("/admin/digests/send")
+    @require_admin
+    def admin_digests_send():
+        if not verify_csrf():
+            abort(400)
+        if not mailer.is_configured():
+            flash("Email isn't set up yet (RESEND_API_KEY is missing).", "error")
+        else:
+            flash(f"Daily summaries: {send_digests(request.url_root.rstrip('/'))}.", "ok")
+        return redirect(url_for("admin_users"))
 
     @app.template_filter("timestamp_utc")
     def _timestamp_utc(ts: int) -> str:
@@ -1058,7 +1229,8 @@ def create_app() -> Flask:
         if not add_tip(msg):
             return jsonify({"ok": False, "error": "Tip is too short."}), 400
         notify(staff_recipients(roles=("editor", "admin")), "tips", "New anonymous tip",
-               "A new tip arrived in the newsroom inbox.", [msg[:500]], admin_url("/admin/tips"), "Open tips")
+               "A new tip arrived in the newsroom inbox.", [msg[:500]], admin_url("/admin/tips"), "Open tips",
+               event={"kind": "tip", "detail": msg})
         return jsonify({"ok": True})
 
     # ---------- Admin auth ----------
@@ -1288,7 +1460,9 @@ def create_app() -> Flask:
             notify(staff_recipients(usernames=tuple(involved), exclude=(g.user["username"],)),
                    f"comments:{article_id}", f"New feedback on “{a['title']}”",
                    f"{g.user['name']} commented on “{a['title']}”.", [body[:500]],
-                   admin_url(f"/admin/preview/{article_id}"), "See the comments")
+                   admin_url(f"/admin/preview/{article_id}"), "See the comments",
+                   event={"kind": "comment", "article_id": article_id, "title": a["title"],
+                          "actor": g.user["name"], "detail": body})
         anchor = f"#block-{block}" if block >= 0 else "#general"
         return redirect(url_for("admin_preview", article_id=article_id) + anchor)
 
@@ -1408,12 +1582,14 @@ def create_app() -> Flask:
             notify(staff_recipients(roles=("editor", "admin"), exclude=(g.user["username"],)),
                    f"review:{article_id}", f"For review: {a['title']}",
                    f"{g.user['name']} submitted an article for review.",
-                   [f"“{a['title']}” ({a['section']})"], admin_url(f"/admin/preview/{article_id}"), "Review it")
+                   [f"“{a['title']}” ({a['section']})"], admin_url(f"/admin/preview/{article_id}"), "Review it",
+                   event={"kind": "review", "article_id": article_id, "title": a["title"], "actor": g.user["name"]})
         if status == "published" and prev_status != "published" and a["created_by"] != g.user["username"]:
             notify(staff_recipients(usernames=(a["created_by"],)), f"published:{article_id}",
                    f"Published: {a['title']}", "Your article is live on the site.",
                    [f"“{a['title']}” was published by {g.user['name']}."],
-                   f"{PUBLIC_SITE_URL}/article.html?id={article_id}", "Read it on the site")
+                   f"{PUBLIC_SITE_URL}/article.html?id={article_id}", "Read it on the site",
+                   event={"kind": "published", "article_id": article_id, "title": a["title"], "actor": g.user["name"]})
         if a["lead"]:
             # One lead per issue
             with conn() as c:
@@ -1528,7 +1704,7 @@ def create_app() -> Flask:
     def admin_account():
         me = None if g.user["builtin"] else dict(get_user(g.user["username"]))
         return render_template("admin_account.html", csrf=csrf_token(), min_len=MIN_PASSWORD_LEN, title="Account",
-                               me=me, mail_ready=mailer.is_configured())
+                               me=me, mail_ready=mailer.is_configured(), modes=NOTIFY_MODES, digest_hour=DIGEST_HOUR)
 
     @app.post("/admin/account/email")
     @require_login
@@ -1542,8 +1718,9 @@ def create_app() -> Flask:
             flash("That email address doesn't look right.", "error")
             return redirect(url_for("admin_account"))
         with conn() as c:
-            c.execute("UPDATE users SET email = ?, notify = ? WHERE username = ?",
-                      (email, 1 if request.form.get("notify") == "1" else 0, g.user["username"]))
+            mode = request.form.get("notify_mode")
+            c.execute("UPDATE users SET email = ?, notify_mode = ? WHERE username = ?",
+                      (email, mode if mode in NOTIFY_MODES else "daily", g.user["username"]))
             c.commit()
         flash("Email settings saved.", "ok")
         return redirect(url_for("admin_account"))

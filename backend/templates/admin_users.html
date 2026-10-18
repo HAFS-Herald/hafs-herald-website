@@ -54,7 +54,7 @@
       <tbody>
         {% for u in users %}
           <tr{% if not u.active %} style="opacity:.6;"{% endif %}>
-            <td><strong>{{ u.display_name }}</strong><div class="muted small">{{ u.username }}{% if u.email %} · {{ u.email }}{% endif %}{% if not u.active %} · deactivated{% endif %}</div></td>
+            <td><strong>{{ u.display_name }}</strong><div class="muted small">{{ u.username }}{% if u.email %} · {{ u.email }} ({{ {"daily": "daily summary", "instant": "emails right away", "off": "emails off"}[u.notify_mode] }}){% endif %}{% if not u.active %} · deactivated{% endif %}</div></td>
             <td>
               <form method="post" action="/admin/users/update/{{ u.username }}" style="display:flex; gap:.4rem;">
                 <input type="hidden" name="csrf" value="{{ csrf }}" />
@@ -95,4 +95,10 @@
     <p class="muted">No staff accounts yet. You're using the built-in admin login.</p>
   {% endif %}
   <p class="help">When someone graduates or leaves, click Deactivate. Their articles stay on the site.</p>
+  <form method="post" action="/admin/digests/send" style="margin-top:.5rem;"
+        data-confirm="Send everyone's daily summary now instead of waiting for the evening?" onsubmit="return confirm(this.dataset.confirm);">
+    <input type="hidden" name="csrf" value="{{ csrf }}" />
+    <button class="btn btn-muted" type="submit">Send daily summaries now</button>
+    <span class="help">Summaries go out automatically each evening; use this to test or to send early.</span>
+  </form>
 {% endblock %}
