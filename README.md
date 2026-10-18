@@ -22,6 +22,16 @@ This repo is split into:
    - Build command: *(leave blank)*
    - Output directory: `frontend/public`
 
+## Email (Resend)
+- Railway variables: `RESEND_API_KEY` (required to send), `MAIL_FROM` (e.g. `The HAFS Herald <newsletter@hafsherald.com>`),
+  optional `MAIL_REPLY_TO`. Without the key nothing is sent and everything else works.
+- **Staff notifications:** each person adds their email under **Account** (or an admin sets it when creating them) and can
+  turn emails off. Editors hear about articles submitted for review and new tips; writers hear about comments and
+  publication. At most one email per person per topic every 30 minutes.
+- **Newsletter** (admins): pick an issue, add a note, preview, send a test, then send. Every email has a one-click
+  unsubscribe link. Resend's free plan sends 100 emails a day; bigger lists finish with **Continue sending** the next
+  day, and nobody gets an issue twice.
+
 ## Link previews (Cloudflare Pages Functions)
 - `functions/_middleware.js` adds the headline, summary and cover photo to article pages so links shared on
   KakaoTalk, Instagram, Discord etc. show a proper preview. Cloudflare picks up the `functions/` folder automatically

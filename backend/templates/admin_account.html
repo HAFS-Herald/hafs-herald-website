@@ -13,7 +13,29 @@
       Staff should use their own accounts (create them under <a href="/admin/users">Users</a>).
     </p></div>
   {% else %}
+    <div class="card" style="max-width: 520px; margin-bottom:1rem;">
+      <h2 class="headline-md" style="margin-top:0;">Email notifications</h2>
+      <p class="help" style="margin-top:0;">
+        {% if user.role == "writer" %}Get an email when someone comments on your article or it's published.
+        {% else %}Get an email when articles are submitted for review, someone comments on your work, or a tip arrives.{% endif %}
+        {% if not mail_ready %}<br><em>Email isn't switched on for the site yet, so nothing will be sent until an admin sets it up.</em>{% endif %}
+      </p>
+      <form class="admin-form" method="post" action="/admin/account/email">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <label class="field">
+          <span class="field-label">Your email</span>
+          <input type="email" name="email" value="{{ me.email if me else '' }}" placeholder="you@example.com" />
+        </label>
+        <label style="display:flex; gap:.5rem; align-items:center;">
+          <input type="checkbox" name="notify" value="1" style="width:auto;" {% if me and me.notify %}checked{% endif %} />
+          Send me notifications
+        </label>
+        <div><button class="btn" type="submit">Save</button></div>
+      </form>
+    </div>
+
     <div class="card" style="max-width: 520px;">
+      <h2 class="headline-md" style="margin-top:0;">Password</h2>
       <form class="admin-form" method="post" action="/admin/account">
         <input type="hidden" name="csrf" value="{{ csrf }}" />
         <label class="field">

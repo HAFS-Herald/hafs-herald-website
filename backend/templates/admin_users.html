@@ -25,6 +25,10 @@
           <input name="display_name" required placeholder="e.g. Kim Ji-woo" />
         </label>
       </div>
+      <label class="field">
+        <span class="field-label">Email (optional, for notifications)</span>
+        <input type="email" name="email" placeholder="e.g. jiwoo@example.com" />
+      </label>
       <div class="row">
         <label class="field">
           <span class="field-label">Role</span>
@@ -50,7 +54,7 @@
       <tbody>
         {% for u in users %}
           <tr{% if not u.active %} style="opacity:.6;"{% endif %}>
-            <td><strong>{{ u.display_name }}</strong><div class="muted small">{{ u.username }}{% if not u.active %} · deactivated{% endif %}</div></td>
+            <td><strong>{{ u.display_name }}</strong><div class="muted small">{{ u.username }}{% if u.email %} · {{ u.email }}{% endif %}{% if not u.active %} · deactivated{% endif %}</div></td>
             <td>
               <form method="post" action="/admin/users/update/{{ u.username }}" style="display:flex; gap:.4rem;">
                 <input type="hidden" name="csrf" value="{{ csrf }}" />

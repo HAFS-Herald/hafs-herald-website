@@ -1,0 +1,106 @@
+{% extends "admin_base.html" %}
+{% block content %}
+  <style>
+    .nl{ display:grid; grid-template-columns: 380px 1fr; gap:1rem; align-items:start; }
+    @media (max-width: 900px){ .nl{ grid-template-columns: 1fr; } }
+    .nl iframe{ width:100%; height: 820px; border:1px solid var(--border); border-radius: var(--radius); background:#f4f4f1; }
+    .notice-box{ padding:.8rem 1rem; border-radius:14px; margin-bottom:1rem; border:1px solid color-mix(in oklab, var(--accent-2) 35%, var(--border)); background: color-mix(in oklab, var(--accent-2) 8%, var(--panel)); }
+  </style>
+
+  <div class="admin-top">
+    <div>
+      <h1 class="headline-lg" style="margin:0;">Newsletter</h1>
+      <div class="muted">Email an issue to {{ subscriber_count }} subscriber{{ "" if subscriber_count == 1 else "s" }}.</div>
+    </div>
+  </div>
+
+  {% if not mail_ready %}
+    <div class="notice-box">Email isn't set up yet. Add <code>RESEND_API_KEY</code> and <code>MAIL_FROM</code> to the backend's Variables on Railway. You can still preview.</div>
+  {% endif %}
+
+  <div class="nl">
+    <div class="card">
+      <form class="admin-form" method="get" action="/admin/newsletter" id="nlForm">
+        <label class="field">
+          <span class="field-label">Issue</span>
+          <select name="issue" onchange="this.form.submit()">
+            {% for n in issues %}<option value="{{ n }}" {% if n == issue %}selected{% endif %}>Issue #{{ n }}</option>{% endfor %}
+            {% if issue not in issues %}<option value="{{ issue }}" selected>Issue #{{ issue }} (nothing published)</option>{% endif %}
+          </select>
+          <span class="help">{{ article_count }} published article{{ "" if article_count == 1 else "s" }}. The lead story goes first.</span>
+        </label>
+        <label class="field">
+          <span class="field-label">Subject</span>
+          <input name="subject" value="{{ subject }}" maxlength="200" />
+        </label>
+        <label class="field">
+          <span class="field-label">Note from the editors (optional)</span>
+          <textarea name="intro" rows="4" maxlength="2000" placeholder="A line or two about this issue…">{{ intro }}</textarea>
+        </label>
+        <div><button class="btn btn-muted" type="submit">Update preview</button></div>
+      </form>
+
+      <hr style="border:0; border-top:1px solid var(--border); margin:1.2rem 0;" />
+
+      <form class="admin-form" method="post" action="/admin/newsletter/test">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <input type="hidden" name="issue" value="{{ issue }}" />
+        <input type="hidden" name="subject" value="{{ subject }}" />
+        <input type="hidden" name="intro" value="{{ intro }}" />
+        <label class="field">
+          <span class="field-label">Send a test to</span>
+          <input type="email" name="test_to" value="{{ test_to }}" placeholder="you@example.com" required />
+        </label>
+        <div><button class="btn btn-muted" type="submit" {% if not mail_ready %}disabled{% endif %}>Send test</button></div>
+      </form>
+
+      <hr style="border:0; border-top:1px solid var(--border); margin:1.2rem 0;" />
+
+      <form method="post" action="/admin/newsletter/send"
+            data-confirm="Send “{{ subject }}” to {{ subscriber_count }} subscribers? This can't be undone.{% if already_sent %} Issue #{{ issue }} has been sent before.{% endif %}"
+            onsubmit="return confirm(this.dataset.confirm);">
+        <input type="hidden" name="csrf" value="{{ csrf }}" />
+        <input type="hidden" name="issue" value="{{ issue }}" />
+        <input type="hidden" name="subject" value="{{ subject }}" />
+        <input type="hidden" name="intro" value="{{ intro }}" />
+        {% if already_sent %}<p class="help" style="margin-top:0;">⚠ Issue #{{ issue }} has already been sent.</p>{% endif %}
+        <button class="btn" type="submit" {% if not mail_ready or not article_count or not subscriber_count %}disabled{% endif %}>
+          Send to {{ subscriber_count }} subscriber{{ "" if subscriber_count == 1 else "s" }}
+        </button>
+        <p class="help">Resend's free plan sends up to 100 emails a day. Larger lists finish with “Continue sending” the next day; nobody gets it twice.</p>
+      </form>
+    </div>
+
+    <div>
+      <div class="help" style="margin-bottom:.4rem;">Preview</div>
+      <iframe title="Newsletter preview" sandbox srcdoc="{{ preview_html }}"></iframe>
+    </div>
+  </div>
+
+  {% if sends %}
+    <h2 class="headline-md">Sent</h2>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table class="admin-table">
+        <thead><tr><th>Issue</th><th>Subject</th><th>Started</th><th>Delivered</th><th></th></tr></thead>
+        <tbody>
+          {% for s in sends %}
+            <tr>
+              <td>#{{ s.issue }}</td>
+              <td>{{ s.subject }}<div class="muted small">by {{ s.started_by }}</div></td>
+              <td class="muted">{{ s.started_at[:16].replace("T", " ") }} UTC</td>
+              <td>{{ s.sent }} / {{ s.total }}{% if s.last_error and not s.finished %}<div class="muted small">{{ s.last_error }}</div>{% endif %}</td>
+              <td>
+                {% if not s.finished %}
+                  <form method="post" action="/admin/newsletter/{{ s.id }}/continue">
+                    <input type="hidden" name="csrf" value="{{ csrf }}" />
+                    <button class="btn btn-muted" type="submit" {% if not mail_ready %}disabled{% endif %}>Continue sending</button>
+                  </form>
+                {% else %}<span class="muted small">Done</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+{% endblock %}

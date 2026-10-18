@@ -80,6 +80,7 @@
     "settings" if ep == "admin_settings" else
     "users" if ep == "admin_users" else
     "subscribers" if ep == "admin_subscribers" else
+    "newsletter" if ep == "admin_newsletter" else
     "backups" if ep == "admin_backups" else
     "account" if ep == "admin_account" else "") %}
 
@@ -123,6 +124,7 @@
         {% if user.role == "admin" %}
           <span class="divider" aria-hidden="true"></span>
           <a href="/admin/users" class="{{ 'is-active' if nav_section == 'users' }}">Users</a>
+          <a href="/admin/newsletter" class="{{ 'is-active' if nav_section == 'newsletter' }}">Newsletter</a>
           <a href="/admin/subscribers" class="{{ 'is-active' if nav_section == 'subscribers' }}">Subscribers</a>
           <a href="/admin/backups" class="{{ 'is-active' if nav_section == 'backups' }}">Backups</a>
         {% endif %}

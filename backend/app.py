@@ -15,12 +15,14 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from flask_cors import CORS
 from markupsafe import Markup, escape
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
+
+import mailer
 
 try:
     from PIL import Image, ImageOps
@@ -292,6 +294,43 @@ def load_session_user():
         session.pop("pwv", None)
 
 
+NOTIFY_THROTTLE_SECONDS = 30 * 60  # at most one email per recipient per topic in this window
+
+
+def staff_recipients(roles=(), usernames=(), exclude=()) -> List[Dict[str, str]]:
+    """Active staff with an email address and notifications on."""
+    with conn() as c:
+        rows = c.execute("SELECT username, display_name, role, email FROM users WHERE active = 1 AND notify = 1 AND email != ''").fetchall()
+    return [dict(r) for r in rows
+            if (r["role"] in roles or r["username"] in usernames) and r["username"] not in exclude]
+
+
+def notify(recipients: List[Dict[str, str]], topic: str, subject: str, heading: str, lines: List[str],
+           link: str, link_label: str):
+    """Email staff about something that needs them, skipping anyone emailed about the same topic recently."""
+    if not mailer.is_configured() or not recipients:
+        return
+    now = time.time()
+    with conn() as c:
+        c.execute("DELETE FROM notify_log WHERE ts < ?", (now - 86400,))
+        for r in recipients:
+            recent = c.execute("SELECT 1 FROM notify_log WHERE recipient = ? AND key = ? AND ts > ?",
+                               (r["username"], topic, now - NOTIFY_THROTTLE_SECONDS)).fetchone()
+            if recent:
+                continue
+            c.execute("INSERT INTO notify_log (recipient, key, ts) VALUES (?,?,?)", (r["username"], topic, now))
+            html = render_template("email_notification.html", heading=heading, lines=lines, link=link,
+                                   link_label=link_label, name=r["display_name"])
+            text = "\n\n".join([f"Hi {r['display_name']},", heading, *lines, f"{link_label}: {link}",
+                                 "You can turn these emails off under Account in the newsroom."])
+            mailer.send_in_background(r["email"], subject, html, text)
+        c.commit()
+
+
+def admin_url(path: str) -> str:
+    return request.url_root.rstrip("/") + path
+
+
 def require_role(*roles):
     def deco(fn):
         @wraps(fn)
@@ -422,16 +461,62 @@ def init_db():
         c.execute("CREATE INDEX IF NOT EXISTS revisions_article ON revisions (article_id, id)")
         c.execute(
             """
+            CREATE TABLE IF NOT EXISTS notify_log (
+                recipient TEXT NOT NULL,
+                key TEXT NOT NULL,
+                ts REAL NOT NULL
+            )
+            """
+        )
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS newsletter_sends (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                issue INTEGER NOT NULL,
+                subject TEXT NOT NULL,
+                intro TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                started_by TEXT NOT NULL,
+                total INTEGER NOT NULL,
+                finished INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS newsletter_recipients (
+                send_id INTEGER NOT NULL,
+                subscriber_id INTEGER NOT NULL,
+                PRIMARY KEY (send_id, subscriber_id)
+            )
+            """
+        )
+        c.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 username TEXT PRIMARY KEY,
                 display_name TEXT NOT NULL,
                 role TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
                 active INTEGER NOT NULL DEFAULT 1,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                email TEXT NOT NULL DEFAULT '',
+                notify INTEGER NOT NULL DEFAULT 1
             )
             """
         )
+        user_cols = [row["name"] for row in c.execute("PRAGMA table_info(users)").fetchall()]
+        if "email" not in user_cols:
+            c.execute("ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+        if "notify" not in user_cols:
+            c.execute("ALTER TABLE users ADD COLUMN notify INTEGER NOT NULL DEFAULT 1")
+        # Each subscriber gets a secret token for their unsubscribe link
+        sub_cols = [row["name"] for row in c.execute("PRAGMA table_info(subscribers)").fetchall()]
+        if "token" not in sub_cols:
+            c.execute("ALTER TABLE subscribers ADD COLUMN token TEXT NOT NULL DEFAULT ''")
+        for row in c.execute("SELECT id FROM subscribers WHERE token = ''").fetchall():
+            c.execute("UPDATE subscribers SET token = ? WHERE id = ?", (secrets.token_urlsafe(24), row["id"]))
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS settings (
@@ -734,8 +819,8 @@ def add_subscriber(email: str) -> bool:
     now = utc_now_iso()
     with conn() as c:
         c.execute(
-            "INSERT OR IGNORE INTO subscribers (email, created_at) VALUES (?, ?)",
-            (email, now),
+            "INSERT OR IGNORE INTO subscribers (email, created_at, token) VALUES (?, ?, ?)",
+            (email, now, secrets.token_urlsafe(24)),
         )
         c.commit()
     return True
@@ -972,6 +1057,8 @@ def create_app() -> Flask:
             return jsonify({"ok": False, "error": "Too many tips from you in the last hour. Try again later."}), 429
         if not add_tip(msg):
             return jsonify({"ok": False, "error": "Tip is too short."}), 400
+        notify(staff_recipients(roles=("editor", "admin")), "tips", "New anonymous tip",
+               "A new tip arrived in the newsroom inbox.", [msg[:500]], admin_url("/admin/tips"), "Open tips")
         return jsonify({"ok": True})
 
     # ---------- Admin auth ----------
@@ -1195,6 +1282,13 @@ def create_app() -> Flask:
                      g.user["username"], g.user["name"], utc_now_iso()),
                 )
                 c.commit()
+                # Everyone in the conversation: the writer plus earlier commenters
+                involved = {a["created_by"]} | {r[0] for r in c.execute(
+                    "SELECT DISTINCT author FROM comments WHERE article_id = ?", (article_id,)).fetchall()}
+            notify(staff_recipients(usernames=tuple(involved), exclude=(g.user["username"],)),
+                   f"comments:{article_id}", f"New feedback on “{a['title']}”",
+                   f"{g.user['name']} commented on “{a['title']}”.", [body[:500]],
+                   admin_url(f"/admin/preview/{article_id}"), "See the comments")
         anchor = f"#block-{block}" if block >= 0 else "#general"
         return redirect(url_for("admin_preview", article_id=article_id) + anchor)
 
@@ -1308,7 +1402,18 @@ def create_app() -> Flask:
                 before = row_to_article(existing)
                 record_revision(before, before["updated_by"] or "Earlier version", note="Text before history was recorded")
 
+        prev_status = existing["status"] if existing else None
         upsert_article(a)
+        if status == "review" and prev_status != "review":
+            notify(staff_recipients(roles=("editor", "admin"), exclude=(g.user["username"],)),
+                   f"review:{article_id}", f"For review: {a['title']}",
+                   f"{g.user['name']} submitted an article for review.",
+                   [f"“{a['title']}” ({a['section']})"], admin_url(f"/admin/preview/{article_id}"), "Review it")
+        if status == "published" and prev_status != "published" and a["created_by"] != g.user["username"]:
+            notify(staff_recipients(usernames=(a["created_by"],)), f"published:{article_id}",
+                   f"Published: {a['title']}", "Your article is live on the site.",
+                   [f"“{a['title']}” was published by {g.user['name']}."],
+                   f"{PUBLIC_SITE_URL}/article.html?id={article_id}", "Read it on the site")
         if a["lead"]:
             # One lead per issue
             with conn() as c:
@@ -1364,7 +1469,10 @@ def create_app() -> Flask:
         name = (request.form.get("display_name") or "").strip()
         role = request.form.get("role") or ""
         password = request.form.get("password") or ""
+        email = (request.form.get("email") or "").strip().lower()
         err = user_form_error(username, name, role, password)
+        if not err and email and not is_valid_email(email):
+            err = "That email address doesn't look right."
         if not err and get_user(username):
             err = f"The username “{username}” is taken."
         if err:
@@ -1372,8 +1480,8 @@ def create_app() -> Flask:
             return redirect(url_for("admin_users"))
         with conn() as c:
             c.execute(
-                "INSERT INTO users (username, display_name, role, password_hash, active, created_at) VALUES (?,?,?,?,1,?)",
-                (username, name, role, generate_password_hash(password), utc_now_iso()),
+                "INSERT INTO users (username, display_name, role, password_hash, active, created_at, email) VALUES (?,?,?,?,1,?,?)",
+                (username, name, role, generate_password_hash(password), utc_now_iso(), email),
             )
             c.commit()
         flash(f"Created {name} ({ROLE_LABELS[role]}). Give them their username and password.", "ok")
@@ -1418,7 +1526,27 @@ def create_app() -> Flask:
     @app.get("/admin/account")
     @require_login
     def admin_account():
-        return render_template("admin_account.html", csrf=csrf_token(), min_len=MIN_PASSWORD_LEN, title="Account")
+        me = None if g.user["builtin"] else dict(get_user(g.user["username"]))
+        return render_template("admin_account.html", csrf=csrf_token(), min_len=MIN_PASSWORD_LEN, title="Account",
+                               me=me, mail_ready=mailer.is_configured())
+
+    @app.post("/admin/account/email")
+    @require_login
+    def admin_account_email():
+        if not verify_csrf():
+            abort(400)
+        if g.user["builtin"]:
+            abort(400)
+        email = (request.form.get("email") or "").strip().lower()
+        if email and not is_valid_email(email):
+            flash("That email address doesn't look right.", "error")
+            return redirect(url_for("admin_account"))
+        with conn() as c:
+            c.execute("UPDATE users SET email = ?, notify = ? WHERE username = ?",
+                      (email, 1 if request.form.get("notify") == "1" else 0, g.user["username"]))
+            c.commit()
+        flash("Email settings saved.", "ok")
+        return redirect(url_for("admin_account"))
 
     @app.post("/admin/account")
     @require_login
@@ -1644,6 +1772,180 @@ def create_app() -> Flask:
         zip_path.unlink()
         tmp_dir.rmdir()
         return send_file(fh, as_attachment=True, download_name=zip_path.name, mimetype="application/zip")
+
+    # ---------- Newsletter ----------
+    def issue_articles(issue: int) -> List[Dict[str, Any]]:
+        with conn() as c:
+            rows = c.execute("SELECT * FROM articles WHERE status = 'published' AND issue = ? ORDER BY featured DESC, date DESC",
+                             (issue,)).fetchall()
+        return [row_to_article(r) for r in rows]
+
+    def absolute_media(path: str) -> str:
+        if not path or re.match(r"^https?://", path):
+            return path
+        return request.url_root.rstrip("/") + "/" + path.lstrip("/")
+
+    def newsletter_content(issue: int, subject: str, intro: str, unsubscribe_url: str):
+        """HTML and plain-text versions of an issue's newsletter."""
+        arts = issue_articles(issue)
+        lead = next((a for a in arts if a["lead"]), None) or next((a for a in arts if a["cover"]), None)
+        rest = [a for a in arts if a is not lead]
+        settings = get_settings()
+        date = settings.get("currentIssueDate") if int(settings.get("currentIssueNumber") or 0) == issue else ""
+        link = lambda a: f"{PUBLIC_SITE_URL}/article.html?id={a['id']}"
+        html = render_template("email_newsletter.html", issue=issue, date=date, intro=intro, lead=lead, rest=rest,
+                               link=link, cover=lambda a: absolute_media(a["cover"]), site=PUBLIC_SITE_URL,
+                               unsubscribe_url=unsubscribe_url, subject=subject)
+        lines = [f"THE HAFS HERALD — Issue #{issue}" + (f" · {date}" if date else ""), ""]
+        if intro:
+            lines += [intro, ""]
+        for a in ([lead] if lead else []) + rest:
+            lines += [f"[{a['section']}] {a['title']}", a["summary"], f"By {a['author']} — {link(a)}", ""]
+        lines += [f"Read the whole issue: {PUBLIC_SITE_URL}/issue.html?n={issue}", "",
+                  f"Unsubscribe: {unsubscribe_url}"]
+        return html, "\n".join(lines), len(arts)
+
+    def unsubscribe_link(token: str) -> str:
+        return request.url_root.rstrip("/") + "/unsubscribe?t=" + token
+
+    def deliver(send_id: int) -> str:
+        """Send a newsletter to everyone who hasn't had it yet. Returns a message for the admin."""
+        with conn() as c:
+            send = c.execute("SELECT * FROM newsletter_sends WHERE id = ?", (send_id,)).fetchone()
+            todo = c.execute(
+                """SELECT * FROM subscribers WHERE created_at <= ? AND id NOT IN
+                   (SELECT subscriber_id FROM newsletter_recipients WHERE send_id = ?) ORDER BY id""",
+                (send["started_at"], send_id)).fetchall()
+        sent = 0
+        error = ""
+        for i in range(0, len(todo), mailer.BATCH_SIZE):
+            batch = todo[i:i + mailer.BATCH_SIZE]
+            msgs = []
+            for sub in batch:
+                url = unsubscribe_link(sub["token"])
+                html, text, _ = newsletter_content(send["issue"], send["subject"], send["intro"], url)
+                msgs.append(mailer.message(sub["email"], send["subject"], html, text, headers={
+                    "List-Unsubscribe": f"<{url}>",
+                    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                }))
+            try:
+                mailer.send_batch(msgs)
+            except mailer.MailError as e:
+                error = ("The email service's sending limit was reached (Resend's free plan allows 100 a day). "
+                         "Click “Continue sending” tomorrow to send the rest." if e.is_rate_limit else str(e))
+                break
+            with conn() as c:
+                c.executemany("INSERT OR IGNORE INTO newsletter_recipients (send_id, subscriber_id) VALUES (?,?)",
+                              [(send_id, sub["id"]) for sub in batch])
+                c.commit()
+            sent += len(batch)
+        remaining = len(todo) - sent
+        with conn() as c:
+            c.execute("UPDATE newsletter_sends SET finished = ?, last_error = ? WHERE id = ?",
+                      (1 if remaining == 0 else 0, error, send_id))
+            c.commit()
+        if remaining == 0:
+            return f"Sent to {sent} subscriber{'s' if sent != 1 else ''}. Done."
+        return f"Sent to {sent}; {remaining} still to go. {error}"
+
+    @app.get("/admin/newsletter")
+    @require_admin
+    def admin_newsletter():
+        settings = get_settings()
+        with conn() as c:
+            issues = [r[0] for r in c.execute(
+                "SELECT DISTINCT issue FROM articles WHERE status = 'published' AND issue > 0 ORDER BY issue DESC").fetchall()]
+            sends = [dict(r) for r in c.execute(
+                """SELECT s.*, (SELECT COUNT(*) FROM newsletter_recipients r WHERE r.send_id = s.id) AS sent
+                   FROM newsletter_sends s ORDER BY s.id DESC LIMIT 20""").fetchall()]
+            subscriber_count = c.execute("SELECT COUNT(*) FROM subscribers").fetchone()[0]
+        try:
+            issue = int(request.args.get("issue") or settings.get("currentIssueNumber") or (issues[0] if issues else 0))
+        except ValueError:
+            issue = 0
+        subject = request.args.get("subject") or f"The HAFS Herald — Issue #{issue}"
+        intro = request.args.get("intro") or ""
+        preview_html, _, article_count = newsletter_content(issue, subject, intro, unsubscribe_link("preview"))
+        me = None if g.user["builtin"] else get_user(g.user["username"])
+        return render_template("admin_newsletter.html", issues=issues, issue=issue, subject=subject, intro=intro,
+                               preview_html=preview_html, article_count=article_count, sends=sends,
+                               subscriber_count=subscriber_count, already_sent=any(s["issue"] == issue for s in sends),
+                               mail_ready=mailer.is_configured(), test_to=(me["email"] if me else ""),
+                               csrf=csrf_token(), title="Newsletter")
+
+    def newsletter_form():
+        try:
+            issue = int(request.form.get("issue") or 0)
+        except ValueError:
+            issue = 0
+        subject = (request.form.get("subject") or "").strip()[:200] or f"The HAFS Herald — Issue #{issue}"
+        intro = (request.form.get("intro") or "").strip()[:2000]
+        return issue, subject, intro
+
+    @app.post("/admin/newsletter/test")
+    @require_admin
+    def admin_newsletter_test():
+        if not verify_csrf():
+            abort(400)
+        issue, subject, intro = newsletter_form()
+        to = (request.form.get("test_to") or "").strip()
+        back = url_for("admin_newsletter", issue=issue, subject=subject, intro=intro)
+        if not is_valid_email(to):
+            flash("Enter an email address for the test.", "error")
+            return redirect(back)
+        html, text, _ = newsletter_content(issue, subject, intro, unsubscribe_link("test"))
+        try:
+            mailer.send(to, "[TEST] " + subject, html, text)
+            flash(f"Test sent to {to}.", "ok")
+        except mailer.MailError as e:
+            flash(f"Test failed: {e}", "error")
+        return redirect(back)
+
+    @app.post("/admin/newsletter/send")
+    @require_admin
+    def admin_newsletter_send():
+        if not verify_csrf():
+            abort(400)
+        if not mailer.is_configured():
+            flash("Email isn't set up yet (RESEND_API_KEY is missing on Railway).", "error")
+            return redirect(url_for("admin_newsletter"))
+        issue, subject, intro = newsletter_form()
+        if not issue_articles(issue):
+            flash(f"Issue #{issue} has no published articles.", "error")
+            return redirect(url_for("admin_newsletter"))
+        with conn() as c:
+            total = c.execute("SELECT COUNT(*) FROM subscribers").fetchone()[0]
+            cur = c.execute(
+                "INSERT INTO newsletter_sends (issue, subject, intro, started_at, started_by, total) VALUES (?,?,?,?,?,?)",
+                (issue, subject, intro, utc_now_iso(), g.user["name"], total))
+            send_id = cur.lastrowid
+            c.commit()
+        msg = deliver(send_id)
+        flash(msg, "ok" if "Done" in msg else "error")
+        return redirect(url_for("admin_newsletter", issue=issue))
+
+    @app.post("/admin/newsletter/<int:send_id>/continue")
+    @require_admin
+    def admin_newsletter_continue(send_id: int):
+        if not verify_csrf():
+            abort(400)
+        msg = deliver(send_id)
+        flash(msg, "ok" if "Done" in msg else "error")
+        return redirect(url_for("admin_newsletter"))
+
+    # ---------- Public: unsubscribe ----------
+    @app.route("/unsubscribe", methods=["GET", "POST"])
+    def unsubscribe():
+        token = request.args.get("t") or request.form.get("t") or ""
+        with conn() as c:
+            sub = c.execute("SELECT * FROM subscribers WHERE token = ? AND token != ''", (token,)).fetchone() if token else None
+            if request.method == "POST" and sub:
+                # Also the target of one-click unsubscribe buttons in mail apps
+                c.execute("DELETE FROM subscribers WHERE id = ?", (sub["id"],))
+                c.commit()
+                return render_template("unsubscribe.html", state="done", site=PUBLIC_SITE_URL)
+        return render_template("unsubscribe.html", state="confirm" if sub else "unknown", token=token,
+                               email=sub["email"] if sub else "", site=PUBLIC_SITE_URL)
 
     from media_library import bp as media_bp
     app.register_blueprint(media_bp)
