@@ -9,7 +9,6 @@
         <strong>Admins</strong> also manage users, subscribers and backups.
       </div>
     </div>
-    <div class="links"><a class="btn btn-muted" href="/admin">Back</a></div>
   </div>
 
   <div class="card" style="margin-bottom:1rem;">
@@ -76,7 +75,7 @@
                   <input type="hidden" name="action" value="{{ 'deactivate' if u.active else 'activate' }}" />
                   <button class="btn btn-muted" type="submit">{{ "Deactivate" if u.active else "Reactivate" }}</button>
                 </form>
-                <form method="post" action="/admin/users/update/{{ u.username }}" onsubmit="return confirm('Delete {{ u.display_name }}’s account? Their articles are kept.');">
+                <form method="post" action="/admin/users/update/{{ u.username }}" data-confirm="Delete {{ u.display_name }}’s account? Their articles are kept." onsubmit="return confirm(this.dataset.confirm);">
                   <input type="hidden" name="csrf" value="{{ csrf }}" />
                   <input type="hidden" name="action" value="delete" />
                   <button class="btn btn-muted" type="submit">Delete</button>

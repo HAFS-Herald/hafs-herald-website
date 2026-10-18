@@ -1,5 +1,5 @@
 import { loadContent } from "./content.js";
-import { $, articleCard, escapeHtml, formatDate, initPage, listIssues, setTopbar, showLoadError, sortArticles } from "./common.js";
+import { $, articleCard, escapeHtml, formatDate, initPage, leadStory, listIssues, pickLead, setTopbar, showLoadError, sortArticles } from "./common.js";
 
 const root = $("#issueSections");
 
@@ -27,10 +27,13 @@ async function main() {
 
   $("#issueMeta").textContent = `Published ${formatDate(issue.date, "long")} · ${issue.items.length} article${issue.items.length === 1 ? "" : "s"}`;
 
+  const lead = pickLead(issue.items);
+  if (lead) root.appendChild(leadStory(lead));
+
   // Like a table of contents: sections in their usual order
   const order = [...sections, ...new Set(issue.items.map((a) => a.section))];
   for (const section of new Set(order)) {
-    const items = issue.items.filter((a) => a.section === section);
+    const items = issue.items.filter((a) => a.section === section && a !== lead);
     if (!items.length) continue;
     const group = document.createElement("section");
     group.className = "issue-group";

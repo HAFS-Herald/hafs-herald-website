@@ -1,5 +1,5 @@
 import { loadContent } from "./content.js";
-import { $, escapeHtml, formatDate, formatInline, initPage, readingTime, setTopbar, showLoadError } from "./common.js";
+import { $, authorLinks, escapeHtml, formatDate, formatInline, initPage, readingTime, setTopbar, showLoadError } from "./common.js";
 
 const articleRoot = $("#articleRoot");
 const relatedList = $("#relatedList");
@@ -44,7 +44,7 @@ function renderArticle(a) {
     <h1>${escapeHtml(a.title)}</h1>
 
     <div class="article-meta">
-      <span>By ${escapeHtml(a.author)}</span>
+      <span>By ${authorLinks(a.author)}</span>
       <span>•</span>
       <span>${readingTime(a.body)}</span>
     </div>

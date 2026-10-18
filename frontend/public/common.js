@@ -75,6 +75,55 @@ export function listIssues(articles, settings) {
     .sort((a, b) => b.n - a.n);
 }
 
+// "Kim Ji-woo and Lee Min" / "Kim, Lee & Park" -> individual names
+export function splitAuthors(author) {
+  return String(author || "")
+    .split(/\s*(?:,|&|\band\b|·)\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function authorUrl(name) {
+  return `author.html?name=${encodeURIComponent(name)}`;
+}
+
+// Byline with each name linking to its author page
+export function authorLinks(author) {
+  const names = splitAuthors(author);
+  if (!names.length) return escapeHtml(author || "");
+  const links = names.map((n) => `<a class="byline-link" href="${authorUrl(n)}">${escapeHtml(n)}</a>`);
+  return links.length > 1 ? `${links.slice(0, -1).join(", ")} and ${links.at(-1)}` : links[0];
+}
+
+// The issue's lead: the one editors marked, otherwise the newest article with a photo
+export function pickLead(articles) {
+  return articles.find((a) => a.lead) || sortArticles(articles.filter((a) => a.cover), "newest")[0] || null;
+}
+
+export function leadStory(a) {
+  const el = document.createElement("article");
+  el.className = "card lead-story";
+  const href = `article.html?id=${encodeURIComponent(a.id)}`;
+  el.innerHTML = `
+    ${a.cover ? `<a class="lead-media" href="${href}" tabindex="-1" aria-hidden="true"><img src="${escapeHtml(a.cover)}" alt=""></a>` : ""}
+    <div class="lead-body">
+      <div class="kicker">
+        <span class="tag tag-accent">${escapeHtml(a.section)}</span>
+        <span>•</span>
+        <span>${formatDate(a.date)}</span>
+      </div>
+      <h2 class="lead-title"><a class="title-link" href="${href}">${escapeHtml(a.title)}</a></h2>
+      <p class="lede">${escapeHtml(a.summary)}</p>
+      <div class="meta">
+        <span>By ${authorLinks(a.author)}</span>
+        <span>•</span>
+        <span>${readingTime(a.body)}</span>
+      </div>
+    </div>
+  `;
+  return el;
+}
+
 export function articleCard(a) {
   const card = document.createElement("div");
   card.className = "card article-card";
@@ -92,7 +141,7 @@ export function articleCard(a) {
     </h3>
     <p class="muted" style="margin:0;">${escapeHtml(a.summary)}</p>
     <div class="meta">
-      <span>By ${escapeHtml(a.author)}</span>
+      <span>By ${authorLinks(a.author)}</span>
       <span>•</span>
       <span>${readingTime(a.body)}</span>
     </div>

@@ -1,57 +1,55 @@
 {% extends "admin_base.html" %}
 {% block content %}
+  <style>
+    .tip-list{ display:grid; gap:.7rem; }
+    .tip{ padding: .9rem 1rem; display:grid; gap:.5rem; }
+    .tip.is-new{ border-color: color-mix(in oklab, var(--accent-2) 40%, var(--border)); }
+    .tip-head{ display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+    .tip-msg{ white-space: pre-wrap; overflow-wrap:anywhere; }
+    .tip-actions{ display:flex; gap:1rem; flex-wrap:wrap; }
+    .tip-status-new{ border-color: color-mix(in oklab, var(--accent-2) 40%, var(--border)); background: color-mix(in oklab, var(--accent-2) 10%, var(--panel)); }
+    .tip-status-resolved{ color: var(--muted); }
+  </style>
+
   <div class="admin-top">
     <div>
       <h1 class="headline-lg" style="margin:0;">Anonymous tips</h1>
-      <div class="muted">Tips submitted from the homepage tip form.</div>
-    </div>
-    <div class="links">
-      <a class="btn btn-muted" href="/admin">Back to articles</a>
-      <a class="btn btn-muted" href="/admin/subscribers">Subscribers</a>
-      <a class="btn btn-muted" href="/admin/settings">Settings</a>
+      <div class="muted">Sent from the tip form on the site. Senders aren't identified.</div>
     </div>
   </div>
 
-  <div class="card" style="padding:0; overflow:hidden;">
-    <table class="admin-table">
-      <thead>
-        <tr>
-          <th style="width:110px;">Status</th>
-          <th>Message</th>
-          <th style="width:200px;">Received at (UTC)</th>
-          <th style="width:220px;">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for t in tips %}
-          <tr>
-            <td><span class="tag">{{ t.status }}</span></td>
-            <td style="white-space:pre-wrap;">{{ t.message }}</td>
-            <td class="muted">{{ t.created_at }}</td>
-            <td>
-              <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
-                <form method="post" action="/admin/tips/mark/{{ t.id }}">
-                  <input type="hidden" name="csrf" value="{{ csrf }}" />
-                  <input type="hidden" name="status" value="read" />
-                  <button class="btn btn-muted" type="submit">Mark read</button>
-                </form>
-                <form method="post" action="/admin/tips/mark/{{ t.id }}">
-                  <input type="hidden" name="csrf" value="{{ csrf }}" />
-                  <input type="hidden" name="status" value="resolved" />
-                  <button class="btn btn-muted" type="submit">Resolve</button>
-                </form>
-                <form method="post" action="/admin/tips/delete/{{ t.id }}" onsubmit="return confirm('Delete this tip?');">
-                  <input type="hidden" name="csrf" value="{{ csrf }}" />
-                  <button class="btn btn-muted" type="submit">Delete</button>
-                </form>
-              </div>
-            </td>
-          </tr>
-        {% endfor %}
-        {% if tips|length == 0 %}
-          <tr><td colspan="4" class="muted">No tips yet.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
+  <nav class="tabs" aria-label="Filter tips">
+    {% for key, label in [("new", "New"), ("read", "Read"), ("resolved", "Resolved"), ("all", "All")] %}
+      <a href="?show={{ key }}" class="{{ 'is-active' if show == key }}">{{ label }} <span class="muted">{{ counts[key] }}</span></a>
+    {% endfor %}
+  </nav>
+
+  <div class="tip-list">
+    {% for t in tips %}
+      <div class="card tip{% if t.status == 'new' %} is-new{% endif %}">
+        <div class="tip-head">
+          <span class="status tip-status-{{ t.status }}">{{ t.status | capitalize }}</span>
+          <span class="muted small">{{ t.created_at[:16].replace("T", " ") }} UTC</span>
+        </div>
+        <div class="tip-msg">{{ t.message }}</div>
+        <div class="tip-actions">
+          {% for st, label in [("read", "Mark read"), ("resolved", "Mark resolved"), ("new", "Mark new")] if st != t.status %}
+            <form method="post" action="/admin/tips/mark/{{ t.id }}">
+              <input type="hidden" name="csrf" value="{{ csrf }}" />
+              <input type="hidden" name="status" value="{{ st }}" />
+              <input type="hidden" name="show" value="{{ show }}" />
+              <button class="link-btn" type="submit">{{ label }}</button>
+            </form>
+          {% endfor %}
+          <form method="post" action="/admin/tips/delete/{{ t.id }}" onsubmit="return confirm('Delete this tip?');">
+            <input type="hidden" name="csrf" value="{{ csrf }}" />
+            <button class="link-btn" type="submit">Delete</button>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
   </div>
+  {% if not tips %}
+    <p class="muted">{{ "No new tips." if show == "new" else "No tips here." }}</p>
+  {% endif %}
 {% endblock %}

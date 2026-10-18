@@ -47,6 +47,12 @@ This repo is split into:
   Comments never appear on the public site.
 - Article bodies support `**bold**`, `*italic*`, `[links](https://...)`, `## Subheadings` and `- ` lists.
 - Uploaded photos are resized to 1600px and stripped of location data automatically (`MAX_IMAGE_PX` to change).
+- **Autosave:** the editor keeps unsaved changes in the browser and offers to restore them after a crash or closed tab.
+- **History:** every save is kept (last 50 per article, `MAX_REVISIONS`). The History page shows what changed,
+  compares any version with the current text, and can restore an old version.
+- **Lead story:** editors tick "Lead story" on one article per issue; it's shown large on the homepage and issue page.
+  Without one, the newest article with a photo is used.
+- **Author pages:** bylines link to `author.html?name=…`, listing that writer's articles (and their role from the staff list).
 
 ## Backups
 - The database is copied automatically once a day to `/data/backups` (last 14 kept; change with `BACKUP_KEEP`).

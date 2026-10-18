@@ -1,0 +1,17 @@
+{# Breadcrumb, title, status and Edit / Preview / History tabs for one article #}
+{% macro article_nav(a, active, editable) %}
+  <div class="crumbs">
+    <a href="/admin">{{ "My articles" if user.role == "writer" else "Articles" }}</a>
+    <span aria-hidden="true">›</span>
+    <span class="status status-{{ a.status }}">{{ status_labels[a.status] }}</span>
+    {% if a.status == "published" and public_site_url %}
+      <a href="{{ public_site_url }}/article.html?id={{ a.id }}" target="_blank" rel="noopener">View on site ↗</a>
+    {% endif %}
+  </div>
+  <h1 class="headline-lg page-title">{{ a.title or "Untitled" }}</h1>
+  <nav class="tabs" aria-label="Article">
+    {% if editable %}<a href="/admin/edit/{{ a.id }}" class="{{ 'is-active' if active == 'edit' }}">Edit</a>{% endif %}
+    <a href="/admin/preview/{{ a.id }}" class="{{ 'is-active' if active == 'preview' }}">Preview &amp; comments</a>
+    <a href="/admin/history/{{ a.id }}" class="{{ 'is-active' if active == 'history' }}">History</a>
+  </nav>
+{% endmacro %}

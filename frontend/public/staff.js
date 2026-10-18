@@ -1,5 +1,5 @@
 import { loadContent } from "./content.js";
-import { $, escapeHtml, initPage, setTopbar, showLoadError } from "./common.js";
+import { $, authorUrl, escapeHtml, initPage, setTopbar, showLoadError } from "./common.js";
 
 const grid = $("#staffGrid");
 const empty = $("#staffEmpty");
@@ -28,7 +28,7 @@ async function main() {
         <div class="avatar" aria-hidden="true">${escapeHtml(initial)}</div>
         <div>
           <div class="staff-name">${escapeHtml(person.role || "")}</div>
-          <div class="muted">${escapeHtml(person.name || "")}</div>
+          <div class="muted">${person.name ? `<a class="byline-link" href="${authorUrl(person.name)}">${escapeHtml(person.name)}</a>` : ""}</div>
           ${person.contact ? `<div class="muted small">${escapeHtml(person.contact)}</div>` : ""}
         </div>
       `;

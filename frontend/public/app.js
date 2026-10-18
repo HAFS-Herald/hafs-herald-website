@@ -1,5 +1,5 @@
 import { loadContent } from "./content.js";
-import { $, articleCard, formatDate, initPage, normalize, setTopbar, showLoadError, sortArticles } from "./common.js";
+import { $, articleCard, formatDate, initPage, leadStory, normalize, pickLead, setTopbar, showLoadError, sortArticles } from "./common.js";
 
 const API = window.HAFS_API_BASE || "";
 
@@ -103,13 +103,19 @@ async function main() {
   let issueArticles = issueNum == null ? articles : articles.filter((a) => Number(a.issue) === Number(issueNum));
   if (!issueArticles.length) issueArticles = articles;
 
+  const lead = pickLead(issueArticles);
+  const leadRoot = $("#leadStory");
+
   function render() {
     const q = normalize(searchInput?.value);
+    // While searching, show every match in the grid; otherwise the lead gets its own spot
+    const showLead = Boolean(lead) && !q;
+    leadRoot.replaceChildren(...(showLead ? [leadStory(lead)] : []));
     const list = issueArticles.filter((a) =>
-      q ? normalize(`${a.title} ${a.summary} ${a.author} ${a.section}`).includes(q) : true
+      q ? normalize(`${a.title} ${a.summary} ${a.author} ${a.section}`).includes(q) : a !== lead
     );
     articlesGrid.replaceChildren(...sortArticles(list, sortSelect?.value || "newest").map(articleCard));
-    emptyState.hidden = list.length !== 0;
+    emptyState.hidden = list.length !== 0 || showLead;
   }
 
   render();

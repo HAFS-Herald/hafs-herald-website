@@ -1,5 +1,6 @@
 {% extends "admin_base.html" %}
 {% from "_comments.html" import comment_card, comment_form with context %}
+{% from "_article_nav.html" import article_nav with context %}
 {% block content %}
   <style>
     .preview-block{ position:relative; border-radius: 10px; margin: 0 -.6rem; padding: 0 .6rem; }
@@ -22,15 +23,7 @@
     .feedback-bar{ display:flex; gap:.8rem; align-items:center; flex-wrap:wrap; margin-bottom: 1rem; }
   </style>
 
-  <div class="admin-top">
-    <div>
-      <span class="status status-{{ a.status }}">{{ status_labels[a.status] }}{% if a.status != "published" %} — not visible on the site{% endif %}</span>
-    </div>
-    <div class="links">
-      <a class="btn btn-muted" href="/admin">Back</a>
-      {% if editable %}<a class="btn" href="/admin/edit/{{ a.id }}">Edit</a>{% endif %}
-    </div>
-  </div>
+  {{ article_nav(a, "preview", editable) }}
 
   <div class="feedback-bar help">
     <span>Click <strong>💬 Comment</strong> under any paragraph to leave feedback on it. Comments are never shown on the site.</span>

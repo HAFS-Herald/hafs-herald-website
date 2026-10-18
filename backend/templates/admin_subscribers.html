@@ -5,11 +5,7 @@
       <h1 class="headline-lg" style="margin:0;">Subscribers</h1>
       <div class="muted">Newsletter signups collected from the site.</div>
     </div>
-    <div class="links">
-      <a class="btn btn-muted" href="/admin">Back to articles</a>
-      <a class="btn btn-muted" href="/admin/tips">View tips</a>
-      <a class="btn btn-muted" href="/admin/settings">Settings</a>
-    </div>
+    <div class="muted">{{ subscribers|length }} subscriber{{ "" if subscribers|length == 1 else "s" }}</div>
   </div>
 
   <div class="card" style="padding:0; overflow:hidden;">

@@ -1,20 +1,12 @@
 {% extends "admin_base.html" %}
+{% from "_article_nav.html" import article_nav with context %}
 {% block content %}
-  <div class="admin-top">
-    <div>
-      <h1 class="headline-lg" style="margin:0;">{% if is_new %}New article{% else %}Edit article{% endif %}</h1>
-      <div class="muted">ID is the URL slug: <code>article.html?id=ID</code>.</div>
-    </div>
-    <div class="links">
-      <a class="btn btn-muted" href="/admin">Back</a>
-      {% if not is_new %}
-        <a class="btn btn-muted" href="/admin/preview/{{ a.id }}">Preview</a>
-        {% if a.status == "published" and public_site_url %}
-          <a class="btn btn-muted" href="{{ public_site_url }}/article.html?id={{ a.id }}">View on site</a>
-        {% endif %}
-      {% endif %}
-    </div>
-  </div>
+  {% if is_new %}
+    <div class="crumbs"><a href="/admin">{{ "My articles" if user.role == "writer" else "Articles" }}</a> <span aria-hidden="true">›</span> New</div>
+    <h1 class="headline-lg page-title" style="margin-bottom:1rem;">New article</h1>
+  {% else %}
+    {{ article_nav(a, "edit", True) }}
+  {% endif %}
 
   {% if feedback %}
     {% from "_comments.html" import comment_card with context %}
@@ -33,7 +25,13 @@
   {% endif %}
 
   <div class="card">
-    <form class="admin-form" method="post" action="/admin/save" enctype="multipart/form-data">
+    <div class="autosave-banner" id="autosaveBanner" hidden>
+      <span id="autosaveMsg"></span>
+      <button class="btn" type="button" id="autosaveRestore">Restore</button>
+      <button class="btn btn-muted" type="button" id="autosaveDiscard">Discard</button>
+    </div>
+    <form class="admin-form" method="post" action="/admin/save" enctype="multipart/form-data"
+          data-user="{{ user.username }}" data-updated="{{ a.updated_at or '' }}">
       <input type="hidden" name="csrf" value="{{ csrf }}" />
       <input type="hidden" name="is_new" value="{{ 1 if is_new else 0 }}" />
 
@@ -137,15 +135,23 @@
 {% endif %}{% endfor %}</textarea>
       </label>
 
+      {% if can_publish %}
+        <label class="lead-check">
+          <input type="checkbox" name="lead" value="1" {% if a.lead %}checked{% endif %} />
+          <span><strong>Lead story</strong> of this issue: shown large at the top of the homepage. Replaces the issue's current lead.</span>
+        </label>
+      {% endif %}
+
       <label class="field">
         <span class="field-label">Correction (optional)</span>
         <textarea name="correction" rows="2" placeholder="e.g. An earlier version misstated the date of the concert. It is on Nov. 3.">{{ a.correction or '' }}</textarea>
         <span class="help">Shown in a box at the top of the article. Leave empty if there's nothing to correct.</span>
       </label>
 
-      <div style="display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;">
+      <div class="save-bar">
         <button class="btn" type="submit">Save</button>
-        <a class="btn btn-muted" href="/admin">Cancel</a>
+        {% if not is_new %}<a class="btn btn-muted" href="/admin/preview/{{ a.id }}">Preview</a>{% endif %}
+        <span class="help" id="autosaveStatus"></span>
       </div>
     </form>
   </div>
@@ -156,11 +162,77 @@
     .feedback-card .comment-body{ white-space: pre-wrap; margin:.25rem 0; }
     .feedback-card .comment-actions{ display:flex; gap:.8rem; }
     .link-btn{ background:none; border:0; padding:0; color: var(--muted); font: inherit; font-size:.85rem; cursor:pointer; text-decoration: underline; }
+    /* Save stays on screen while scrolling a long article */
+    .save-bar{ position: sticky; bottom: 0; z-index: 5; display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;
+      margin: 0 -1rem -1rem; padding: .7rem 1rem; border-top: 1px solid var(--border);
+      background: color-mix(in oklab, var(--bg) 92%, transparent); backdrop-filter: blur(6px); border-radius: 0 0 var(--radius) var(--radius); }
+    .lead-check{ display:flex; gap:.6rem; align-items:flex-start; padding:.7rem .8rem; border:1px solid var(--border); border-radius: 14px; }
+    .lead-check input{ width:auto; margin-top:.25rem; }
+    .autosave-banner{ display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; padding:.7rem .9rem; margin-bottom:1rem;
+      border-radius: 14px; border:1px solid color-mix(in oklab, var(--accent) 35%, var(--border)); background: color-mix(in oklab, var(--accent) 8%, var(--panel)); }
+    .autosave-banner .btn{ padding:.4rem .8rem; }
+    .autosave-banner[hidden]{ display:none; }
     .format-bar{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; margin-top:-.4rem; }
     .format-bar .btn{ padding:.4rem .7rem; font-size:.9rem; }
     .format-bar .help{ flex-basis:100%; }
   </style>
   <script>
+    // Autosave: keep a copy of the form in this browser while typing, so a crash,
+    // dead battery or expired login doesn't lose work. Cleared once the server has the same text.
+    (() => {
+      const form = document.querySelector('form[action="/admin/save"]');
+      let store;
+      try { store = window.localStorage; store.getItem("x"); } catch (_) { return; }
+      const isNew = form.elements.is_new.value === "1";
+      const keyFor = (id) => `hafs-autosave:${form.dataset.user}:${id}`;
+      const key = keyFor(isNew ? "new" : form.elements.id.value);
+      const FIELDS = ["id", "title", "section", "author", "date", "summary", "issue", "pullQuote", "body", "correction"];
+      const read = () => Object.fromEntries(FIELDS.filter((n) => form.elements[n]).map((n) => [n, form.elements[n].value]));
+      // Compare the way the server stores text (trimmed, paragraphs split on blank lines)
+      const norm = (v) => JSON.stringify(Object.fromEntries(Object.entries(v).map(([k, x]) => [k,
+        k === "body" ? x.replace(/\r\n/g, "\n").split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).join("\n\n") : x.trim()])));
+      const initial = norm(read());
+      const statusEl = document.getElementById("autosaveStatus");
+      const time = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const get = () => { try { return JSON.parse(store.getItem(key) || "null"); } catch (_) { return null; } };
+
+      const saved = get();
+      if (saved && norm(saved.values) !== initial) {
+        const serverNewer = form.dataset.updated && Date.parse(form.dataset.updated) > saved.at;
+        document.getElementById("autosaveMsg").textContent =
+          `Unsaved changes from ${new Date(saved.at).toLocaleString()} were kept on this device.` +
+          (serverNewer ? " Someone saved this article after that; restoring replaces their changes." : "");
+        const banner = document.getElementById("autosaveBanner");
+        banner.hidden = false;
+        document.getElementById("autosaveRestore").onclick = () => {
+          for (const [n, v] of Object.entries(saved.values)) if (form.elements[n] && !form.elements[n].readOnly) form.elements[n].value = v;
+          banner.hidden = true;
+          statusEl.textContent = "Restored. Click Save to keep it.";
+        };
+        document.getElementById("autosaveDiscard").onclick = () => { store.removeItem(key); banner.hidden = true; };
+      } else if (saved) {
+        store.removeItem(key);
+      }
+
+      let timer;
+      form.addEventListener("input", () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          const values = read();
+          try {
+            if (norm(values) === initial) store.removeItem(key);
+            else store.setItem(key, JSON.stringify({ at: Date.now(), values }));
+            statusEl.textContent = `Unsaved changes kept on this device (${time(Date.now())})`;
+          } catch (_) {}
+        }, 800);
+      });
+      form.addEventListener("submit", () => {
+        // A new article's draft moves to its ID; it's cleared when the saved page loads with the same text
+        if (isNew && form.elements.id.value) {
+          try { store.setItem(keyFor(form.elements.id.value), JSON.stringify({ at: Date.now(), values: read() })); store.removeItem(key); } catch (_) {}
+        }
+      });
+    })();
     (() => {
       // Suggest an ID from an English title (Korean titles: type one in)
       const idField = document.querySelector('input[name="id"]:not([readonly])');

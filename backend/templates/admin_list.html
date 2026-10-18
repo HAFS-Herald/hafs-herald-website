@@ -1,5 +1,29 @@
 {% extends "admin_base.html" %}
 {% block content %}
+  <style>
+    .list-tools{ display:flex; gap:.8rem; align-items:end; justify-content:space-between; flex-wrap:wrap; }
+    .list-tools .tabs{ margin:0; border-bottom:0; }
+    .list-search{ min-width: 240px; max-width: 320px; flex: 1; }
+    .list-search input{ padding:.55rem .8rem; }
+    .art-title a{ color: inherit; text-decoration:none; font-weight:700; }
+    .art-title a:hover{ text-decoration: underline; }
+    .art-sub{ color: var(--muted); font-size:.85rem; margin-top:.15rem; }
+    .row-actions{ display:flex; gap:.9rem; align-items:center; white-space:nowrap; }
+    .lead-mark{ font-size:.75rem; font-weight:700; color: var(--muted); border:1px solid var(--border); border-radius:999px; padding:.05rem .45rem; margin-left:.3rem; white-space:nowrap; }
+    /* Phones: each row becomes a card */
+    @media (max-width: 720px){
+      .admin-table thead{ display:none; }
+      .admin-table, .admin-table tbody, .admin-table tr, .admin-table td{ display:block; width:100%; }
+      .admin-table tr{ padding:.8rem .9rem; border-bottom:1px solid var(--border); }
+      .admin-table tr:last-child{ border-bottom:0; }
+      .admin-table td{ border:0; padding:.15rem 0; }
+      .admin-table td.meta-cell{ display:inline; color: var(--muted); font-size:.88rem; }
+      .admin-table td.meta-cell + td.meta-cell::before{ content:" · "; }
+      .admin-table tr:hover td{ background: transparent; }
+      .row-actions{ margin-top:.4rem; }
+    }
+  </style>
+
   <div class="admin-top">
     <div>
       <h1 class="headline-lg" style="margin:0;">{{ "My articles" if user.role == "writer" else "Articles" }}</h1>
@@ -7,61 +31,61 @@
         {% if user.role == "writer" %}
           Save as Draft while you work, then choose “Submit for review”. An editor publishes it.
         {% else %}
-          Only Published articles appear on the site. Articles waiting for review are listed first.
+          Only Published articles appear on the site.
         {% endif %}
       </div>
     </div>
-    <div class="links">
-      <a class="btn" href="/admin/new">New article</a>
-      <a class="btn btn-muted" href="/admin/media">Media</a>
-      {% if user.role in ("editor", "admin") %}
-        <a class="btn btn-muted" href="/admin/tips">Tips</a>
-        <a class="btn btn-muted" href="/admin/settings">Settings</a>
-      {% endif %}
-      {% if user.role == "admin" %}
-        <a class="btn btn-muted" href="/admin/subscribers">Subscribers</a>
-        <a class="btn btn-muted" href="/admin/users">Users</a>
-        <a class="btn btn-muted" href="/admin/backups">Backups</a>
-      {% endif %}
-    </div>
   </div>
 
-  <div class="card" style="padding:0; overflow-x:auto;">
+  <div class="list-tools">
+    <nav class="tabs" aria-label="Filter by status">
+      {% for key, label in [("all", "All"), ("review", "In review"), ("draft", "Drafts"), ("published", "Published")] %}
+        <a href="?show={{ key }}" class="{{ 'is-active' if show == key }}">{{ label }} <span class="muted">{{ counts[key] }}</span></a>
+      {% endfor %}
+    </nav>
+    <label class="list-search">
+      <input type="search" id="articleSearch" placeholder="Search title, author, section…" aria-label="Search articles" />
+    </label>
+  </div>
+
+  <div class="card" style="padding:0; overflow:hidden; margin-top:.6rem;">
     <table class="admin-table">
       <thead>
         <tr>
           <th>Title</th>
           <th>Status</th>
           <th>Section</th>
-          <th>Date</th>
           <th>Issue</th>
-          <th>Author</th>
-          <th>Actions</th>
+          <th>Date</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
         {% for a in articles %}
-          <tr>
+          <tr data-search="{{ (a.title ~ ' ' ~ a.author ~ ' ' ~ a.section ~ ' ' ~ a.id) | lower }}">
             <td>
-              <strong>{{ a.title }}</strong>
-              <div class="muted small">{{ a.id }}{% if a.updated_by %} · last edited by {{ a.updated_by }}{% endif %}</div>
+              <div class="art-title">
+                <a href="{{ '/admin/edit/' ~ a.id if a.editable else '/admin/preview/' ~ a.id }}">{{ a.title or "Untitled" }}</a>
+                {% if a.lead %}<span class="lead-mark" title="Lead story of issue {{ a.issue }}">LEAD</span>{% endif %}
+              </div>
+              <div class="art-sub">By {{ a.author or "—" }}{% if a.updated_by %} · last edited by {{ a.updated_by }}{% endif %}</div>
             </td>
             <td>
               <span class="status status-{{ a.status }}">{{ status_labels[a.status] }}</span>
-              {% if a.open_comments %}<a class="muted small" href="/admin/preview/{{ a.id }}" title="Open comments" style="white-space:nowrap;">💬 {{ a.open_comments }}</a>{% endif %}
+              {% if a.open_comments %}<a class="muted small" href="/admin/preview/{{ a.id }}" title="Open comments" style="white-space:nowrap; margin-left:.3rem;">💬 {{ a.open_comments }}</a>{% endif %}
             </td>
-            <td>{{ a.section }}</td>
-            <td>{{ a.date }}</td>
-            <td>{{ a.issue }}</td>
-            <td>{{ a.author }}</td>
+            <td class="meta-cell">{{ a.section }}</td>
+            <td class="meta-cell">#{{ a.issue }}</td>
+            <td class="meta-cell">{{ a.date }}</td>
             <td>
-              <div style="display:flex; gap:.4rem; flex-wrap:nowrap;">
-                {% if a.editable %}<a class="btn btn-muted" href="/admin/edit/{{ a.id }}">Edit</a>{% endif %}
-                <a class="btn btn-muted" href="/admin/preview/{{ a.id }}">Preview</a>
+              <div class="row-actions">
+                {% if a.editable %}<a class="link-btn" href="/admin/edit/{{ a.id }}">Edit</a>{% endif %}
+                <a class="link-btn" href="/admin/preview/{{ a.id }}">Preview</a>
+                <a class="link-btn" href="/admin/history/{{ a.id }}">History</a>
                 {% if a.editable %}
-                  <form method="post" action="/admin/delete/{{ a.id }}" onsubmit="return confirm('Delete this article?');">
+                  <form method="post" action="/admin/delete/{{ a.id }}" data-confirm="Delete “{{ a.title }}”? Its comments and history are deleted too." onsubmit="return confirm(this.dataset.confirm);">
                     <input type="hidden" name="csrf" value="{{ csrf }}" />
-                    <button class="btn btn-muted" type="submit">Delete</button>
+                    <button class="link-btn" type="submit">Delete</button>
                   </form>
                 {% endif %}
               </div>
@@ -71,7 +95,25 @@
       </tbody>
     </table>
   </div>
-  {% if not articles %}
-    <p class="muted">No articles yet. Click “New article” to start one.</p>
-  {% endif %}
+  <p class="muted" id="noMatches" {% if articles %}hidden{% endif %}>
+    {% if not counts.all %}No articles yet. Click “+ New article” to start one.{% else %}Nothing here.{% endif %}
+  </p>
+
+  <script>
+    (() => {
+      const input = document.getElementById("articleSearch");
+      const rows = [...document.querySelectorAll("tbody tr[data-search]")];
+      const none = document.getElementById("noMatches");
+      input.addEventListener("input", () => {
+        const q = input.value.trim().toLowerCase();
+        let shown = 0;
+        for (const r of rows) {
+          const hit = !q || r.dataset.search.includes(q);
+          r.hidden = !hit;
+          shown += hit;
+        }
+        none.hidden = shown > 0;
+      });
+    })();
+  </script>
 {% endblock %}
