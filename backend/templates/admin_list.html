@@ -46,7 +46,10 @@
               <strong>{{ a.title }}</strong>
               <div class="muted small">{{ a.id }}{% if a.updated_by %} · last edited by {{ a.updated_by }}{% endif %}</div>
             </td>
-            <td><span class="status status-{{ a.status }}">{{ status_labels[a.status] }}</span></td>
+            <td>
+              <span class="status status-{{ a.status }}">{{ status_labels[a.status] }}</span>
+              {% if a.open_comments %}<a class="muted small" href="/admin/preview/{{ a.id }}" title="Open comments" style="white-space:nowrap;">💬 {{ a.open_comments }}</a>{% endif %}
+            </td>
             <td>{{ a.section }}</td>
             <td>{{ a.date }}</td>
             <td>{{ a.issue }}</td>

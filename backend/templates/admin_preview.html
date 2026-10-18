@@ -1,5 +1,27 @@
 {% extends "admin_base.html" %}
+{% from "_comments.html" import comment_card, comment_form with context %}
 {% block content %}
+  <style>
+    .preview-block{ position:relative; border-radius: 10px; margin: 0 -.6rem; padding: 0 .6rem; }
+    .preview-block.has-comments{ background: color-mix(in oklab, var(--accent-2) 7%, transparent); box-shadow: inset 3px 0 0 color-mix(in oklab, var(--accent-2) 55%, var(--border)); }
+    .preview-block > details{ margin: -.6rem 0 .8rem 0; }
+    .preview-block > details > summary{ list-style:none; cursor:pointer; color: var(--muted); font-size:.85rem; display:inline-block; padding:.1rem .4rem; border-radius: 8px; }
+    .preview-block > details > summary::-webkit-details-marker{ display:none; }
+    .preview-block > details > summary:hover{ background: var(--panel); color: var(--text); }
+    .preview-block:not(:hover):not(.has-comments) > details:not([open]) > summary{ opacity:.35; }
+    .comment-thread{ display:grid; gap:.5rem; margin: 0 0 1rem 0; }
+    .comment{ border:1px solid var(--border); background: var(--panel); border-radius: 12px; padding:.6rem .8rem; font-size:.95rem; }
+    .comment.is-resolved{ opacity:.55; }
+    .comment-head{ display:flex; gap:.5rem; align-items:baseline; flex-wrap:wrap; }
+    .comment-body{ white-space: pre-wrap; margin:.25rem 0; }
+    .comment-actions{ display:flex; gap:.8rem; }
+    .link-btn{ background:none; border:0; padding:0; color: var(--muted); font: inherit; font-size:.85rem; cursor:pointer; text-decoration: underline; }
+    .comment-form{ display:grid; gap:.5rem; margin:.5rem 0 1rem 0; }
+    .comment-form .btn{ justify-self:start; padding:.45rem .8rem; }
+    .orphan-quote{ border-left:3px solid var(--border); padding-left:.7rem; color: var(--muted); font-style: italic; margin:.4rem 0; }
+    .feedback-bar{ display:flex; gap:.8rem; align-items:center; flex-wrap:wrap; margin-bottom: 1rem; }
+  </style>
+
   <div class="admin-top">
     <div>
       <span class="status status-{{ a.status }}">{{ status_labels[a.status] }}{% if a.status != "published" %} — not visible on the site{% endif %}</span>
@@ -10,6 +32,14 @@
     </div>
   </div>
 
+  <div class="feedback-bar help">
+    <span>Click <strong>💬 Comment</strong> under any paragraph to leave feedback on it. Comments are never shown on the site.</span>
+    {% if resolved_count %}
+      <a href="?{{ '' if show_resolved else 'resolved=1' }}">{{ "Hide" if show_resolved else "Show" }} {{ resolved_count }} resolved</a>
+    {% endif %}
+  </div>
+
+  {% set back = "/admin/preview/" ~ a.id ~ ("?resolved=1" if show_resolved else "") %}
   {% set cover = a.cover if (not a.cover or a.cover.startswith(('/', 'http://', 'https://'))) else '/' ~ a.cover %}
   <article class="card article">
     <div class="kicker">
@@ -40,7 +70,37 @@
           <p style="margin:0;"><strong>{{ a.pullQuote }}</strong></p>
         </blockquote>
       {% endif %}
-      {% for b in blocks %}{{ b }}{% endfor %}
+      {% for b in blocks %}
+        <div class="preview-block{% if b.comments %} has-comments{% endif %}" id="block-{{ b.i }}">
+          {{ b.html }}
+          {% if b.comments %}
+            <div class="comment-thread">
+              {% for cm in b.comments %}{{ comment_card(cm, csrf, back, a) }}{% endfor %}
+            </div>
+          {% endif %}
+          <details>
+            <summary>💬 Comment{% if b.comments %} on this paragraph{% endif %}</summary>
+            {{ comment_form(a.id, b.i, csrf, "Feedback on this paragraph…") }}
+          </details>
+        </div>
+      {% endfor %}
     </div>
   </article>
+
+  <div class="card" id="general" style="margin-top:1rem;">
+    <h2 class="headline-md" style="margin-top:0;">Comments on the whole article</h2>
+    {% if general %}
+      <div class="comment-thread">{% for cm in general %}{{ comment_card(cm, csrf, back, a) }}{% endfor %}</div>
+    {% endif %}
+    {{ comment_form(a.id, -1, csrf, "Overall feedback: headline, angle, sources, length…") }}
+
+    {% if orphaned %}
+      <h3 class="headline-md">On text that has since changed</h3>
+      <p class="help">These paragraphs were edited or removed after the comment was written.</p>
+      {% for cm in orphaned %}
+        <div class="orphan-quote">“{{ cm.quote[:300] }}{% if cm.quote|length > 300 %}…{% endif %}”</div>
+        <div class="comment-thread">{{ comment_card(cm, csrf, back, a) }}</div>
+      {% endfor %}
+    {% endif %}
+  </div>
 {% endblock %}
