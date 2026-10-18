@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Unsubscribe • The HAFS Herald</title>
+  <link rel="icon" href="/assets/logo.png" type="image/png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="container" style="max-width:520px; padding:3rem 1rem;">
+    <div class="card">
+      <h1 class="headline-lg" style="margin-top:0;">The HAFS Herald</h1>
+      {% if state == "confirm" %}
+        <p>Stop sending the newsletter to <strong>{{ email }}</strong>?</p>
+        <form method="post" action="/unsubscribe">
+          <input type="hidden" name="t" value="{{ token }}" />
+          <button class="btn" type="submit">Unsubscribe</button>
+        </form>
+      {% elif state == "done" %}
+        <p>You're unsubscribed. You won't get any more newsletters.</p>
+      {% else %}
+        <p>This unsubscribe link isn't valid anymore. You may already be unsubscribed.</p>
+      {% endif %}
+      <p class="muted small" style="margin-bottom:0;"><a href="{{ site }}/">Go to hafsherald.com</a></p>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,17 @@
+<!doctype html>
+<html><body style="margin:0;padding:24px;background:#f4f4f1;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a1a1a;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center">
+    <table role="presentation" width="100%" style="max-width:520px;background:#ffffff;border:1px solid #e4e4dc;border-radius:14px;" cellspacing="0" cellpadding="0">
+      <tr><td style="padding:22px 24px 6px 24px;font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:bold;">The HAFS Herald · Newsroom</td></tr>
+      <tr><td style="padding:6px 24px 0 24px;font-size:15px;">Hi {{ name }},</td></tr>
+      <tr><td style="padding:10px 24px 0 24px;font-size:15px;font-weight:600;">{{ heading }}</td></tr>
+      {% for line in lines %}
+        <tr><td style="padding:8px 24px 0 24px;font-size:15px;line-height:1.5;white-space:pre-wrap;">{{ line }}</td></tr>
+      {% endfor %}
+      <tr><td style="padding:18px 24px 22px 24px;">
+        <a href="{{ link }}" style="display:inline-block;background:#1f3b73;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:10px;font-size:15px;">{{ link_label }}</a>
+      </td></tr>
+    </table>
+    <p style="font-size:12px;color:#777;max-width:520px;">You get these because you're on the Herald staff. Turn them off under Account in the newsroom.</p>
+  </td></tr></table>
+</body></html>
