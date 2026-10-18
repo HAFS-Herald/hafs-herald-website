@@ -95,6 +95,8 @@ RATE_LIMITS = {"tip": (5, 3600), "subscribe": (5, 3600), "login": (10, 900)}
 MAX_TIP_CHARS = 5000
 ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 MAX_IMAGE_PX = int(os.environ.get("MAX_IMAGE_PX", "1600"))
+# The public site (Cloudflare Pages). Set PUBLIC_SITE_URL if it moves to a custom domain.
+PUBLIC_SITE_URL = (os.environ.get("PUBLIC_SITE_URL") or "https://hafsherald.com").rstrip("/")
 
 SECTIONS = [
     "News",
@@ -169,6 +171,11 @@ def safe_filename(name: str) -> str:
     name = name.strip().replace("\\", "/").split("/")[-1]
     name = re.sub(r"[^A-Za-z0-9._-]+", "_", name)
     return name or "upload"
+
+
+def clean_author(author: str) -> str:
+    """Bylines get "By" added by the site, so drop one typed into the Author field ("by Kim" -> "Kim")."""
+    return re.sub(r"^\s*by\b[\s:]*", "", author or "", flags=re.IGNORECASE).strip()
 
 
 def save_upload_image(f, target_dir: Path) -> str:
@@ -473,6 +480,10 @@ def init_db():
             c.execute("ALTER TABLE articles ADD COLUMN status TEXT NOT NULL DEFAULT 'published'")
         if "correction" not in cols:
             c.execute("ALTER TABLE articles ADD COLUMN correction TEXT NOT NULL DEFAULT ''")
+        # One-time cleanup: bylines saved as "By Kim" showed as "By By Kim"
+        for row in c.execute("SELECT id, author FROM articles WHERE author LIKE 'by%' COLLATE NOCASE").fetchall():
+            if clean_author(row["author"]):
+                c.execute("UPDATE articles SET author = ? WHERE id = ?", (clean_author(row["author"]), row["id"]))
         for col in ("created_by", "updated_by"):
             if col not in cols:
                 c.execute(f"ALTER TABLE articles ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
@@ -875,7 +886,7 @@ def create_app() -> Flask:
     @app.context_processor
     def _template_globals():
         return {
-            "public_site_url": (os.environ.get("PUBLIC_SITE_URL") or "").rstrip("/"),
+            "public_site_url": PUBLIC_SITE_URL,
             "user": g.get("user"),
             "status_labels": STATUS_LABELS,
             "role_labels": ROLE_LABELS,
@@ -900,8 +911,8 @@ def create_app() -> Flask:
 
     @app.get("/")
     def home():
-        # The public site lives on Cloudflare Pages; set PUBLIC_SITE_URL to send visitors there.
-        return redirect(os.environ.get("PUBLIC_SITE_URL") or url_for("admin_index"))
+        # The backend's root isn't a page; send visitors to the public site
+        return redirect(PUBLIC_SITE_URL)
 
     @app.get("/favicon.ico")
     def favicon():
@@ -1243,7 +1254,7 @@ def create_app() -> Flask:
             "id": article_id,
             "title": (request.form.get("title") or "").strip(),
             "section": (request.form.get("section") or "News").strip(),
-            "author": (request.form.get("author") or "").strip(),
+            "author": clean_author(request.form.get("author") or ""),
             "date": (request.form.get("date") or "").strip(),
             "summary": (request.form.get("summary") or "").strip(),
             "cover": (request.form.get("cover") or "").strip(),

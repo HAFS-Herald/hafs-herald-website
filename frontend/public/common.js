@@ -75,11 +75,16 @@ export function listIssues(articles, settings) {
     .sort((a, b) => b.n - a.n);
 }
 
+// The site adds "By" itself, so ignore one typed into the author field ("by Kim" -> "Kim")
+export function cleanAuthor(author) {
+  return String(author || "").replace(/^\s*by\b[\s:]*/i, "").trim();
+}
+
 // "Kim Ji-woo and Lee Min" / "Kim, Lee & Park" -> individual names
 export function splitAuthors(author) {
-  return String(author || "")
+  return cleanAuthor(author)
     .split(/\s*(?:,|&|\band\b|·)\s*/)
-    .map((s) => s.trim())
+    .map(cleanAuthor)
     .filter(Boolean);
 }
 
@@ -90,7 +95,7 @@ export function authorUrl(name) {
 // Byline with each name linking to its author page
 export function authorLinks(author) {
   const names = splitAuthors(author);
-  if (!names.length) return escapeHtml(author || "");
+  if (!names.length) return escapeHtml(cleanAuthor(author));
   const links = names.map((n) => `<a class="byline-link" href="${authorUrl(n)}">${escapeHtml(n)}</a>`);
   return links.length > 1 ? `${links.slice(0, -1).join(", ")} and ${links.at(-1)}` : links[0];
 }

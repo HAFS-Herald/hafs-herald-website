@@ -1,5 +1,5 @@
 import { loadContent } from "./content.js";
-import { $, escapeHtml, formatDate, initPage, listIssues, normalize, setTopbar, showLoadError, sortArticles, uniqueYears, yearOf } from "./common.js";
+import { $, cleanAuthor, escapeHtml, formatDate, initPage, listIssues, normalize, setTopbar, showLoadError, sortArticles, uniqueYears, yearOf } from "./common.js";
 
 const searchEl = $("#archiveSearch");
 const sectionEl = $("#archiveSection");
@@ -87,7 +87,7 @@ async function main() {
                   <span class="muted small">• ${formatDate(a.date)}</span>
                 </div>
                 <div class="archive-item-title"><strong>${escapeHtml(a.title)}</strong></div>
-                <div class="muted small">By ${escapeHtml(a.author)} — ${escapeHtml(a.summary || "")}</div>
+                <div class="muted small">By ${escapeHtml(cleanAuthor(a.author))} — ${escapeHtml(a.summary || "")}</div>
               </a>`
               )
               .join("")}
