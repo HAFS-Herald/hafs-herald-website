@@ -27,9 +27,10 @@ This repo is split into:
   `The HAFS Herald <newsletter@hafsherald.com>`), `NOTIFY_FROM` (staff notifications, e.g.
   `Herald Newsroom <newsroom@hafsherald.com>`; defaults to `MAIL_FROM`), optional `MAIL_REPLY_TO` and `DIGEST_HOUR`
   (default 18, Korea time). Without the key nothing is sent and everything else works.
-- `CONTACT_EMAIL` (default `hafsherald@gmail.com`): the address named in the note at the bottom of every automated
-  email ("this is a send-only address, so replies aren't read; write to …"). Set it to your receiving address, e.g.
-  `contact@hafsherald.com` once Cloudflare Email Routing forwards it.
+- `CONTACT_EMAIL` (default `contact@hafsherald.com`): the address named in the note at the bottom of every automated
+  email ("this is a send-only address, so replies aren't read; write to …").
+- Receiving: Cloudflare Email Routing forwards `contact@hafsherald.com` to `hafsherald@gmail.com`
+  (Cloudflare → hafsherald.com → Email → Email Routing). It's also the contact address on the homepage.
 - **Staff notifications:** each person adds their email under **Account** and picks **Daily summary** (default: one
   email around 6 PM Korea time), **Right away**, or **Off**. Editors hear about articles submitted for review and new
   tips; writers about comments and publication. The summary leaves out review requests that were already handled.

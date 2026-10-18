@@ -99,7 +99,7 @@ MAX_TIP_CHARS = 5000
 ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 MAX_IMAGE_PX = int(os.environ.get("MAX_IMAGE_PX", "1600"))
 # Where people can actually write to us; named in the "no reply" note on automated emails
-CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL") or "hafsherald@gmail.com"
+CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL") or "contact@hafsherald.com"
 NO_REPLY_TEXT = (f"This is an automated message from a send-only address, so replies aren't read. "
                  f"To reach us, write to {CONTACT_EMAIL}.")
 # The public site (Cloudflare Pages). Set PUBLIC_SITE_URL if it moves to a custom domain.
