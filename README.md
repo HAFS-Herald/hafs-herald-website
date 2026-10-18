@@ -9,7 +9,7 @@ This repo is split into:
 - **Environment Variables**:
    - `HAFS_ADMIN_PASSWORD` = your admin password
    - `FLASK_SECRET` = any long random string (optional; one is generated and kept in the data folder if unset)
-   - `PUBLIC_SITE_URL` = your Cloudflare Pages address (optional; the backend home page and "View site" go there)
+   - `PUBLIC_SITE_URL` = the public site's address (optional; defaults to `https://hafs-herald-website.pages.dev`; set it if you add a custom domain)
 - **Volume** mounted at `/data`, with
    env vars:
    - `DATA_DIR=/data`
