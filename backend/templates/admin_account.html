@@ -26,9 +26,15 @@
           <span class="field-label">Your email</span>
           <input type="email" name="email" value="{{ me.email if me else '' }}" placeholder="you@example.com" />
         </label>
-        <label style="display:flex; gap:.5rem; align-items:center;">
-          <input type="checkbox" name="notify" value="1" style="width:auto;" {% if me and me.notify %}checked{% endif %} />
-          Send me notifications
+        <label class="field">
+          <span class="field-label">Send me notifications</span>
+          <select name="notify_mode">
+            {% for key, label in modes.items() %}
+              <option value="{{ key }}" {% if me and me.notify_mode == key %}selected{% endif %}>
+                {{ label }}{% if key == "daily" %} — one email around {{ "%d:00" % digest_hour if digest_hour <= 12 else "%d:00" % (digest_hour - 12) }} {{ "PM" if digest_hour >= 12 else "AM" }} (Korea time){% elif key == "instant" %} — an email for each event{% endif %}
+              </option>
+            {% endfor %}
+          </select>
         </label>
         <div><button class="btn" type="submit">Save</button></div>
       </form>

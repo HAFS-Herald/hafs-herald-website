@@ -1,0 +1,55 @@
+<!doctype html>
+<html><body style="margin:0;padding:24px 12px;background:#f4f4f1;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a1a1a;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center">
+    <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border:1px solid #e4e4dc;border-radius:14px;" cellspacing="0" cellpadding="0">
+      <tr><td style="padding:22px 24px 4px 24px;font-family:Georgia,'Times New Roman',serif;font-size:19px;font-weight:bold;">The HAFS Herald · Newsroom</td></tr>
+      <tr><td style="padding:2px 24px 0 24px;font-size:13px;color:#777;">Daily summary · {{ date }}</td></tr>
+      <tr><td style="padding:14px 24px 0 24px;font-size:15px;">Hi {{ name }}, here's what happened today.</td></tr>
+
+      {% macro heading(text) %}<tr><td style="padding:20px 24px 6px 24px;font-size:12px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;color:#777;">{{ text }}</td></tr>{% endmacro %}
+
+      {% if g_.review %}
+        {{ heading("Waiting for your review") }}
+        {% for e in g_.review %}
+          <tr><td style="padding:4px 24px;font-size:15px;line-height:1.45;">
+            <a href="{{ e.link }}" style="color:#1f3b73;font-weight:600;">{{ e.title }}</a>
+            <span style="color:#777;"> · from {{ e.actor }}</span>
+          </td></tr>
+        {% endfor %}
+      {% endif %}
+
+      {% if g_.comments %}
+        {{ heading("Comments") }}
+        {% for a in g_.comments %}
+          <tr><td style="padding:6px 24px;font-size:15px;line-height:1.45;">
+            <a href="{{ a.link }}" style="color:#1f3b73;font-weight:600;">{{ a.title }}</a>
+            <span style="color:#777;"> · {{ a.comments|length }} new from {{ a.people|join(", ") }}</span>
+            <div style="margin-top:4px;padding:8px 10px;background:#f6f6f2;border-radius:8px;color:#444;font-size:14px;white-space:pre-wrap;">“{{ a.comments[-1].detail[:240] }}{% if a.comments[-1].detail|length > 240 %}…{% endif %}”</div>
+          </td></tr>
+        {% endfor %}
+      {% endif %}
+
+      {% if g_.published %}
+        {{ heading("Published") }}
+        {% for e in g_.published %}
+          <tr><td style="padding:4px 24px;font-size:15px;line-height:1.45;">
+            <a href="{{ e.link }}" style="color:#1f3b73;font-weight:600;">{{ e.title }}</a>
+            <span style="color:#777;"> · published by {{ e.actor }}</span>
+          </td></tr>
+        {% endfor %}
+      {% endif %}
+
+      {% if g_.tips %}
+        {{ heading("Tips") }}
+        <tr><td style="padding:4px 24px;font-size:15px;line-height:1.45;">
+          {{ g_.tips|length }} new tip{{ "" if g_.tips|length == 1 else "s" }} in the inbox. <a href="{{ tips }}" style="color:#1f3b73;">Read them</a>
+        </td></tr>
+      {% endif %}
+
+      <tr><td style="padding:22px 24px 22px 24px;">
+        <a href="{{ newsroom }}" style="display:inline-block;background:#1f3b73;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:10px;font-size:15px;">Open the newsroom</a>
+      </td></tr>
+    </table>
+    <p style="font-size:12px;color:#777;max-width:560px;">You get one summary a day because you're on the Herald staff. <a href="{{ account }}" style="color:#777;">Change this</a>.</p>
+  </td></tr></table>
+</body></html>
