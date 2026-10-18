@@ -98,6 +98,10 @@ RATE_LIMITS = {"tip": (5, 3600), "subscribe": (5, 3600), "login": (10, 900)}
 MAX_TIP_CHARS = 5000
 ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 MAX_IMAGE_PX = int(os.environ.get("MAX_IMAGE_PX", "1600"))
+# Where people can actually write to us; named in the "no reply" note on automated emails
+CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL") or "contact@hafsherald.com"
+NO_REPLY_TEXT = (f"This is an automated message from a send-only address, so replies aren't read. "
+                 f"To reach us, write to {CONTACT_EMAIL}.")
 # The public site (Cloudflare Pages). Set PUBLIC_SITE_URL if it moves to a custom domain.
 PUBLIC_SITE_URL = (os.environ.get("PUBLIC_SITE_URL") or "https://hafsherald.com").rstrip("/")
 
@@ -341,7 +345,7 @@ def notify(recipients: List[Dict[str, str]], topic: str, subject: str, heading: 
             html = render_template("email_notification.html", heading=heading, lines=lines, link=link,
                                    link_label=link_label, name=r["display_name"])
             text = "\n\n".join([f"Hi {r['display_name']},", heading, *lines, f"{link_label}: {link}",
-                                 "You can turn these emails off under Account in the newsroom."])
+                                 "You can turn these emails off under Account in the newsroom.", NO_REPLY_TEXT])
             mailer.send_in_background(r["email"], subject, html, text)
         c.commit()
 
@@ -551,12 +555,6 @@ def init_db():
             # off | instant | daily. Everyone moves to the daily summary; people who had emails off stay off.
             c.execute("ALTER TABLE users ADD COLUMN notify_mode TEXT NOT NULL DEFAULT 'daily'")
             c.execute("UPDATE users SET notify_mode = 'off' WHERE notify = 0")
-        # Each subscriber gets a secret token for their unsubscribe link
-        sub_cols = [row["name"] for row in c.execute("PRAGMA table_info(subscribers)").fetchall()]
-        if "token" not in sub_cols:
-            c.execute("ALTER TABLE subscribers ADD COLUMN token TEXT NOT NULL DEFAULT ''")
-        for row in c.execute("SELECT id FROM subscribers WHERE token = ''").fetchall():
-            c.execute("UPDATE subscribers SET token = ? WHERE id = ?", (secrets.token_urlsafe(24), row["id"]))
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS settings (
@@ -595,6 +593,13 @@ def init_db():
             )
             """
         )
+
+        # Each subscriber gets a secret token for their unsubscribe link
+        sub_cols = [row["name"] for row in c.execute("PRAGMA table_info(subscribers)").fetchall()]
+        if "token" not in sub_cols:
+            c.execute("ALTER TABLE subscribers ADD COLUMN token TEXT NOT NULL DEFAULT ''")
+        for row in c.execute("SELECT id FROM subscribers WHERE token = ''").fetchall():
+            c.execute("UPDATE subscribers SET token = ? WHERE id = ?", (secrets.token_urlsafe(24), row["id"]))
 
         # Migration: ensure 'issue' exists even if DB created earlier
         cols = [row["name"] for row in c.execute("PRAGMA table_info(articles)").fetchall()]
@@ -1122,6 +1127,7 @@ def create_app() -> Flask:
         if groups["tips"]:
             out += [f"NEW TIPS: {len(groups['tips'])} — {base}/admin/tips", ""]
         out.append(f"Change how often you get these: {base}/admin/account")
+        out.append(NO_REPLY_TEXT)
         return "\n".join(out)
 
     @app.post("/admin/digests/send")
@@ -1143,6 +1149,7 @@ def create_app() -> Flask:
     def _template_globals():
         return {
             "public_site_url": PUBLIC_SITE_URL,
+            "contact_email": CONTACT_EMAIL,
             "user": g.get("user"),
             "status_labels": STATUS_LABELS,
             "role_labels": ROLE_LABELS,
@@ -1979,7 +1986,7 @@ def create_app() -> Flask:
         for a in ([lead] if lead else []) + rest:
             lines += [f"[{a['section']}] {a['title']}", a["summary"], f"By {a['author']} — {link(a)}", ""]
         lines += [f"Read the whole issue: {PUBLIC_SITE_URL}/issue.html?n={issue}", "",
-                  f"Unsubscribe: {unsubscribe_url}"]
+                  f"Unsubscribe: {unsubscribe_url}", "", NO_REPLY_TEXT]
         return html, "\n".join(lines), len(arts)
 
     def unsubscribe_link(token: str) -> str:

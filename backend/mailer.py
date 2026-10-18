@@ -5,7 +5,7 @@
 #   RESEND_API_KEY = re_...                                   (required to send anything)
 #   MAIL_FROM      = The HAFS Herald <newsletter@hafsherald.com>   (newsletter)
 #   NOTIFY_FROM    = Herald Newsroom <newsroom@hafsherald.com>     (staff notifications; defaults to MAIL_FROM)
-#   MAIL_REPLY_TO  = hafsherald@gmail.com                     (optional)
+#   MAIL_REPLY_TO  = contact@hafsherald.com                   (optional: where replies go anyway)
 # Without RESEND_API_KEY every send is skipped, so the site works the same.
 from __future__ import annotations
 
