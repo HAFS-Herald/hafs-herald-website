@@ -12,6 +12,7 @@ import sqlite3
 import tempfile
 import threading
 import time
+import unicodedata
 import zipfile
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -228,7 +229,42 @@ def save_upload_image(f, target_dir: Path) -> str:
     return name
 
 
+# Revised Romanization pieces for Hangul syllables (initial, vowel, final), so Korean titles get readable links
+HANGUL_INITIALS = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"]
+HANGUL_VOWELS = ["a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi",
+                 "yu", "eu", "ui", "i"]
+HANGUL_FINALS = ["", "k", "k", "k", "n", "n", "n", "t", "l", "k", "m", "l", "l", "l", "p", "l", "m", "p", "p", "t",
+                 "t", "ng", "t", "t", "k", "t", "p", "t"]
+MAX_SLUG_LEN = 60
+STAFF_BYLINE = "The HAFS Herald Staff"  # byline for articles made with the built-in admin login
+
+
+def romanize_hangul(text: str) -> str:
+    out = []
+    for ch in text:
+        code = ord(ch) - 0xAC00
+        if 0 <= code < 11172:
+            out.append(HANGUL_INITIALS[code // 588] + HANGUL_VOWELS[(code % 588) // 28] + HANGUL_FINALS[code % 28])
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def make_slug(text: str) -> str:
+    """An article's link ID from its title: "도서관 시간 연장" -> "doseogwan-sigan-yeonjang".
+
+    Mirrors makeSlug() in backend/templates/admin_edit.html, which previews it while typing.
+    """
+    s = unicodedata.normalize("NFKD", romanize_hangul(text or "")).encode("ascii", "ignore").decode().lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    if len(s) > MAX_SLUG_LEN:
+        cut = s[:MAX_SLUG_LEN]
+        s = cut[:cut.rfind("-")] if "-" in cut else cut
+    return s.strip("-")
+
+
 IMAGE_BLOCK_RE = re.compile(r'^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]+)")?\)$')
+NUMBERED_RE = re.compile(r"^(\d{1,3})[.)] ")
 LINK_RE = re.compile(r"\[([^\]]+)\]\(((?:https?://|mailto:|/)[^\s)]*)\)")
 BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 ITALIC_RE = re.compile(r"(?<![*\w])\*(?![\s*])(.+?)(?<![\s*])\*(?![*\w])")
@@ -262,6 +298,11 @@ def render_body_block(p: str) -> Markup:
     lines = s.split("\n")
     if all(re.match(r"^[-*] ", ln) for ln in lines):
         return Markup("<ul>" + "".join(f"<li>{format_inline(ln[2:])}</li>" for ln in lines) + "</ul>")
+    if all(NUMBERED_RE.match(ln) for ln in lines):
+        first = int(NUMBERED_RE.match(lines[0]).group(1))
+        start = f' start="{first}"' if first != 1 else ""
+        items = "".join(f"<li>{format_inline(NUMBERED_RE.sub('', ln, count=1))}</li>" for ln in lines)
+        return Markup(f"<ol{start}>{items}</ol>")
     return Markup(f"<p>{format_inline(s)}</p>")
 
 
@@ -1345,7 +1386,7 @@ def create_app() -> Flask:
             "id": "",
             "title": "",
             "section": "News",
-            "author": g.user["name"] if not g.user["builtin"] else "",
+            "author": g.user["name"] if not g.user["builtin"] else STAFF_BYLINE,
             "date": datetime.now().strftime("%Y-%m-%d"),
             "summary": "",
             "cover": "",
@@ -1548,19 +1589,32 @@ def create_app() -> Flask:
             flash(msg, "error")
             return render_editor(a, is_new=is_new)
 
-        if is_new and not re.match(r"^[a-z0-9][a-z0-9-]{0,80}$", article_id):
-            return fail("ID must be lowercase letters, numbers and dashes, e.g. library-hours-extended.")
+        id_note = ""
+        if is_new:
+            # The link is made from whatever was typed in the ID box, else the title;
+            # a taken link gets -2, -3 … rather than overwriting another article
+            base = make_slug(article_id) or make_slug(a["title"]) or f"article-{datetime.now(KST):%Y%m%d}"
+            article_id, n = base, 1
+            with conn() as c:
+                while c.execute("SELECT 1 FROM articles WHERE id = ?", (article_id,)).fetchone():
+                    n += 1
+                    article_id = f"{base[:MAX_SLUG_LEN - 4]}-{n}"
+            if n > 1:
+                id_note = f" Its link is article.html?id={article_id} because “{base}” was taken."
+            a["id"] = article_id
 
         with conn() as c:
             existing = c.execute("SELECT * FROM articles WHERE id = ?", (article_id,)).fetchone()
-        if is_new and existing:
-            return fail(f"The ID “{article_id}” is already used by another article. Pick a different one.")
         if not is_new:
             if not existing:
                 abort(404)
             if not can_edit_article(g.user, row_to_article(existing)):
                 abort(403)
         a["created_by"] = existing["created_by"] if existing else g.user["username"]
+        if not a["author"]:
+            # Blank byline: credit whoever created the article
+            creator = get_user(a["created_by"])
+            a["author"] = creator["display_name"] if creator else (g.user["name"] if not g.user["builtin"] else STAFF_BYLINE)
 
         f = request.files.get("cover_upload")
         if f and getattr(f, "filename", ""):
@@ -1607,7 +1661,7 @@ def create_app() -> Flask:
             "published": "Published — it's live on the site.",
             "review": "Submitted for review. An editor will publish it.",
             "draft": "Saved as draft (not visible on the site).",
-        }[status], "ok")
+        }[status] + id_note, "ok")
         if not can_edit_article(g.user, a):
             return redirect(url_for("admin_index"))
         return redirect(url_for("admin_edit", article_id=article_id))

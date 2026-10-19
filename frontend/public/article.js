@@ -24,6 +24,13 @@ function renderBlock(p) {
   if (lines.every((ln) => /^[-*] /.test(ln))) {
     return `<ul>${lines.map((ln) => `<li>${formatInline(ln.slice(2))}</li>`).join("")}</ul>`;
   }
+  // "1. First" / "2) Second" lines; mirrors render_body_block() in backend/app.py
+  const numbered = /^(\d{1,3})[.)] /;
+  if (lines.every((ln) => numbered.test(ln))) {
+    const first = Number(lines[0].match(numbered)[1]);
+    const items = lines.map((ln) => `<li>${formatInline(ln.replace(numbered, ""))}</li>`).join("");
+    return `<ol${first !== 1 ? ` start="${first}"` : ""}>${items}</ol>`;
+  }
   return `<p>${formatInline(s)}</p>`;
 }
 
