@@ -1,5 +1,29 @@
 {% extends "admin_base.html" %}
 {% block content %}
+  <style>
+    .staff-table td{ padding-top: .45rem; padding-bottom: .45rem; }
+    .staff-table .move{ display:flex; gap:.3rem; }
+    .staff-table .move .btn{ padding: .35rem .6rem; box-shadow: none; }
+    .staff-table input[type=checkbox]{ width: auto; }
+    .staff-table tr:first-child [data-move="-1"], .staff-table tr:last-child [data-move="1"]{ visibility: hidden; }
+    .staff-table .show{ display:flex; gap:.35rem; align-items:center; }
+    .staff-table .show span{ display:none; }
+    @media (max-width: 640px){
+      /* One person per block: arrows on the left, name and Show on top, position underneath */
+      .staff-table, .staff-table tbody{ display:block; }
+      .staff-table thead{ display:none; }
+      .staff-table tr{ display:grid; grid-template-columns: auto 1fr auto; grid-template-areas: "move name show" "move pos pos";
+        gap: .4rem .7rem; align-items:center; padding: .6rem .7rem; border-bottom: 1px solid var(--border); }
+      .staff-table tr:last-child{ border-bottom: 0; }
+      .staff-table td{ padding: 0; border: 0; }
+      .staff-table td:nth-child(1){ grid-area: move; }
+      .staff-table td:nth-child(2){ grid-area: name; }
+      .staff-table td:nth-child(3){ grid-area: pos; }
+      .staff-table td:nth-child(4){ grid-area: show; }
+      .staff-table .move{ flex-direction: column; }
+      .staff-table .show span{ display:inline; color: var(--muted); font-size:.92rem; }
+    }
+  </style>
   <div class="admin-top">
     <div>
       <h1 class="headline-lg" style="margin:0;">Settings</h1>
@@ -23,10 +47,44 @@
         </label>
       </div>
 
+      <div class="field">
+        <span class="field-label">Staff page</span>
+        <span class="help">Everyone with an active Newsroom account is listed automatically. Type each person's position
+          (left blank, it shows their role), use ↑ ↓ to set the order, and untick <strong>Show</strong> to leave someone off.
+          Deactivated accounts drop off on their own.</span>
+        {% if staff %}
+          <div style="overflow-x:auto; border:1px solid var(--border); border-radius: var(--radius); margin-top:.3rem;">
+            <table class="admin-table staff-table">
+              <thead><tr><th>Order</th><th>Name</th><th>Position</th><th>Show</th></tr></thead>
+              <tbody>
+                {% for u in staff %}
+                  <tr>
+                    <td>
+                      <input type="hidden" name="staff_user" value="{{ u.username }}" />
+                      <div class="move">
+                        <button class="btn btn-muted" type="button" data-move="-1" aria-label="Move {{ u.display_name }} up">↑</button>
+                        <button class="btn btn-muted" type="button" data-move="1" aria-label="Move {{ u.display_name }} down">↓</button>
+                      </div>
+                    </td>
+                    <td><strong>{{ u.display_name }}</strong><div class="muted small">{{ role_labels[u.role] }}</div></td>
+                    <td><input name="position:{{ u.username }}" value="{{ u.position }}" maxlength="80"
+                               placeholder="{{ default_positions[u.role] }}" aria-label="{{ u.display_name }}'s position" /></td>
+                    <td><label class="show"><input type="checkbox" name="show:{{ u.username }}" value="1" {% if u.on_staff_page %}checked{% endif %}
+                               aria-label="Show {{ u.display_name }} on the staff page" /><span aria-hidden="true">Show</span></label></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="muted" style="margin:.3rem 0 0 0;">No accounts yet. People appear here once an admin adds them under Users.</p>
+        {% endif %}
+      </div>
+
       <label class="field">
-        <span class="field-label">Staff (one per line)</span>
-        <span class="help">Format: <code>Role - Name - Optional contact</code></span>
-        <textarea name="staff" rows="8">{{ staff_text }}</textarea>
+        <span class="field-label">Others without an account (one per line)</span>
+        <span class="help">For example the faculty advisor. Format: <code>Position - Name - Optional contact</code>. Listed after everyone above.</span>
+        <textarea name="staff_others" rows="3" placeholder="Faculty Advisor - Mr. Park">{{ others_text }}</textarea>
       </label>
 
       <div style="display:flex; gap:.6rem; flex-wrap:wrap; align-items:center;">
@@ -34,4 +92,13 @@
       </div>
     </form>
   </div>
+  <script>
+    document.querySelectorAll(".staff-table [data-move]").forEach((btn) => btn.addEventListener("click", () => {
+      const row = btn.closest("tr");
+      const other = btn.dataset.move === "-1" ? row.previousElementSibling : row.nextElementSibling;
+      if (!other) return;
+      if (btn.dataset.move === "-1") other.before(row); else other.after(row);
+      btn.focus();
+    }));
+  </script>
 {% endblock %}

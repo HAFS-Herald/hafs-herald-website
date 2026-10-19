@@ -53,9 +53,12 @@ This repo is split into:
   is locked out). Then create staff accounts under **Users**.
 - Roles:
   - **Writer**: writes their own articles and submits them for review; can't publish
-  - **Editor**: edits and publishes any article, reads tips, sets the current issue and staff list
+  - **Editor**: edits and publishes any article, reads tips, sets the current issue and staff page positions
   - **Admin**: everything, plus users, subscribers and backups
 - When someone graduates, **Deactivate** them. Their articles stay.
+- **Staff page:** lists every active account automatically. Under **Settings**, editors set each person's position
+  (blank shows their role), the order, and whether they're shown; people without an account (e.g. the faculty
+  advisor) go in the "Others" box.
 
 ## Drafts and review
 - New articles start as **Draft**. Writers set **Submit for review** when ready; editors set **Published**.
@@ -71,7 +74,7 @@ This repo is split into:
   compares any version with the current text, and can restore an old version.
 - **Lead story:** editors tick "Lead story" on one article per issue; it's shown large on the homepage and issue page.
   Without one, the newest article with a photo is used.
-- **Author pages:** bylines link to `author.html?name=…`, listing that writer's articles (and their role from the staff list).
+- **Author pages:** bylines link to `author.html?name=…`, listing that writer's articles (and their position from the staff page).
 
 ## Backups
 - The database is copied automatically once a day to `/data/backups` (last 14 kept; change with `BACKUP_KEEP`).

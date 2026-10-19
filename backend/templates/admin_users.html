@@ -94,7 +94,7 @@
   {% if not users %}
     <p class="muted">No staff accounts yet. You're using the built-in admin login.</p>
   {% endif %}
-  <p class="help">When someone graduates or leaves, click Deactivate. Their articles stay on the site.</p>
+  <p class="help">When someone graduates or leaves, click Deactivate. Their articles stay on the site, and they drop off the staff page. Staff page positions and order are set under <a href="/admin/settings">Settings</a>.</p>
   <form method="post" action="/admin/digests/send" style="margin-top:.5rem;"
         data-confirm="Send everyone's daily summary now instead of waiting for the evening?" onsubmit="return confirm(this.dataset.confirm);">
     <input type="hidden" name="csrf" value="{{ csrf }}" />
