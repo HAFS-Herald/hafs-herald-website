@@ -91,6 +91,8 @@ STATUS_LABELS = {"draft": "Draft", "review": "In review", "published": "Publishe
 # admin: everything, including subscribers, backups and user accounts
 ROLES = ("writer", "editor", "admin")
 ROLE_LABELS = {"writer": "Writer", "editor": "Editor", "admin": "Admin"}
+# Shown on the staff page for people whose position is left blank
+DEFAULT_POSITIONS = {"writer": "Staff Writer", "editor": "Editor", "admin": "Editor"}
 BUILTIN_ADMIN = "admin"  # signs in with HAFS_ADMIN_PASSWORD; always available as a recovery login
 MIN_PASSWORD_LEN = 8
 
@@ -122,11 +124,8 @@ SECTIONS = [
 DEFAULT_SETTINGS = {
     "currentIssueNumber": 1,
     "currentIssueDate": datetime.now().strftime("%Y-%m-%d"),
-    "staff": [
-        {"role": "Editor-in-Chief", "name": "Name Here", "contact": ""},
-        {"role": "Managing Editor", "name": "Name Here", "contact": ""},
-        {"role": "Design", "name": "Name Here", "contact": ""},
-    ],
+    # The staff page lists active accounts; this holds anyone else (e.g. the faculty advisor)
+    "staffOthers": [],
 }
 
 
@@ -596,6 +595,12 @@ def init_db():
             # off | instant | daily. Everyone moves to the daily summary; people who had emails off stay off.
             c.execute("ALTER TABLE users ADD COLUMN notify_mode TEXT NOT NULL DEFAULT 'daily'")
             c.execute("UPDATE users SET notify_mode = 'off' WHERE notify = 0")
+        staff_cols_missing = "position" not in user_cols
+        if staff_cols_missing:
+            # The staff page lists accounts: each one's position, place in the list, and whether it's shown
+            c.execute("ALTER TABLE users ADD COLUMN position TEXT NOT NULL DEFAULT ''")
+            c.execute("ALTER TABLE users ADD COLUMN staff_order INTEGER NOT NULL DEFAULT 0")
+            c.execute("ALTER TABLE users ADD COLUMN on_staff_page INTEGER NOT NULL DEFAULT 1")
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS settings (
@@ -605,6 +610,8 @@ def init_db():
             )
             """
         )
+        if staff_cols_missing:
+            move_staff_list_to_accounts(c)
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS subscribers (
@@ -726,6 +733,67 @@ def set_settings(settings_obj: Dict[str, Any], connection: Optional[sqlite3.Conn
     if owns:
         connection.commit()
         connection.close()
+
+
+ROLE_ORDER_SQL = "CASE role WHEN 'admin' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END"
+
+
+def parse_staff_lines(text: str) -> List[Dict[str, str]]:
+    staff = []
+    for line in [l.strip() for l in text.replace("\r\n", "\n").split("\n") if l.strip()]:
+        # "Role — Name — Contact"; plain " - " or "|" also work (easier to type on a phone)
+        parts = [p.strip() for p in re.split(r"\s+[—–-]\s+|\s*[—|]\s*", line)]
+        if len(parts) < 2:
+            continue
+        staff.append({"role": parts[0], "name": parts[1], "contact": parts[2] if len(parts) >= 3 else ""})
+    return staff
+
+
+def format_staff_lines(staff: List[Dict[str, str]]) -> str:
+    lines = []
+    for s in staff:
+        role, name, contact = ((s.get(k) or "").strip() for k in ("role", "name", "contact"))
+        lines.append(f"{role} — {name}" + (f" — {contact}" if contact else ""))
+    return "\n".join(lines)
+
+
+def move_staff_list_to_accounts(c: sqlite3.Connection):
+    """One-time switch from the typed staff list: people with an account keep their position and place
+    in the list, accounts not on it follow, and everyone else stays listed under "others"."""
+    r = c.execute("SELECT value_json FROM settings WHERE key = 'site'").fetchone()
+    settings = json.loads(r["value_json"]) if r else None
+    order = 0
+    if settings is not None and "staff" in settings:
+        accounts = {row["display_name"].strip().casefold(): row["username"]
+                    for row in c.execute("SELECT username, display_name FROM users WHERE active = 1")}
+        others = []
+        for s in settings.pop("staff") or []:
+            name = (s.get("name") or "").strip()
+            username = accounts.pop(name.casefold(), None)
+            if username:
+                order += 1
+                c.execute("UPDATE users SET position = ?, staff_order = ? WHERE username = ?",
+                          ((s.get("role") or "").strip(), order, username))
+            elif name and name != "Name Here":  # drop the untouched sample entries
+                others.append(s)
+        settings["staffOthers"] = others + settings.get("staffOthers", [])
+        set_settings(settings, connection=c)
+    for row in c.execute(f"SELECT username FROM users WHERE staff_order = 0 ORDER BY {ROLE_ORDER_SQL}, display_name").fetchall():
+        order += 1
+        c.execute("UPDATE users SET staff_order = ? WHERE username = ?", (order, row["username"]))
+
+
+def staff_accounts() -> List[Dict[str, Any]]:
+    """Active accounts in staff page order."""
+    with conn() as c:
+        rows = c.execute("SELECT * FROM users WHERE active = 1 ORDER BY staff_order, display_name").fetchall()
+    return [dict(r) for r in rows]
+
+
+def staff_page_list(settings: Dict[str, Any]) -> List[Dict[str, str]]:
+    people = [{"role": u["position"] or DEFAULT_POSITIONS.get(u["role"], "Staff"), "name": u["display_name"], "contact": ""}
+              for u in staff_accounts() if u["on_staff_page"]]
+    return people + list(settings.get("staffOthers") or [])
 
 
 def upsert_article(a: Dict[str, Any], connection: Optional[sqlite3.Connection] = None):
@@ -1240,7 +1308,10 @@ def create_app() -> Flask:
         with conn() as c:
             rows = c.execute("SELECT * FROM articles WHERE status = 'published' ORDER BY date DESC").fetchall()
         articles = [public_article(row_to_article(r)) for r in rows]
-        return jsonify({"sections": SECTIONS, "articles": articles, "settings": get_settings()})
+        settings = get_settings()
+        settings["staff"] = staff_page_list(settings)
+        settings.pop("staffOthers", None)
+        return jsonify({"sections": SECTIONS, "articles": articles, "settings": settings})
 
     @app.get("/api/article/<article_id>")
     def api_article(article_id: str):
@@ -1717,7 +1788,8 @@ def create_app() -> Flask:
             return redirect(url_for("admin_users"))
         with conn() as c:
             c.execute(
-                "INSERT INTO users (username, display_name, role, password_hash, active, created_at, email) VALUES (?,?,?,?,1,?,?)",
+                "INSERT INTO users (username, display_name, role, password_hash, active, created_at, email, staff_order) "
+                "VALUES (?,?,?,?,1,?,?,(SELECT COALESCE(MAX(staff_order), 0) + 1 FROM users))",
                 (username, name, role, generate_password_hash(password), utc_now_iso(), email),
             )
             c.commit()
@@ -1876,16 +1948,12 @@ def create_app() -> Flask:
     @require_editor
     def admin_settings():
         settings = get_settings()
-        staff_lines = []
-        for s in settings.get("staff", []):
-            role = (s.get("role") or "").strip()
-            name = (s.get("name") or "").strip()
-            contact = (s.get("contact") or "").strip()
-            staff_lines.append(f"{role} — {name}" + (f" — {contact}" if contact else ""))
         return render_template(
             "admin_settings.html",
             settings=settings,
-            staff_text="\n".join(staff_lines),
+            staff=staff_accounts(),
+            default_positions=DEFAULT_POSITIONS,
+            others_text=format_staff_lines(settings.get("staffOthers") or []),
             csrf=csrf_token(),
         )
 
@@ -1906,20 +1974,17 @@ def create_app() -> Flask:
 
         settings.pop("wittyQuotes", None)  # retired setting
 
-        staff_text = (request.form.get("staff") or "").replace("\r\n", "\n")
-        staff = []
-        for line in [l.strip() for l in staff_text.split("\n") if l.strip()]:
-            # "Role — Name — Contact"; plain " - " or "|" also work (easier to type on a phone)
-            parts = [p.strip() for p in re.split(r"\s+[—–-]\s+|\s*[—|]\s*", line)]
-            if len(parts) < 2:
-                continue
-            role = parts[0]
-            name = parts[1] if len(parts) >= 2 else ""
-            contact = parts[2] if len(parts) >= 3 else ""
-            staff.append({"role": role, "name": name, "contact": contact})
-        settings["staff"] = staff
-
+        settings["staffOthers"] = parse_staff_lines(request.form.get("staff_others") or "")
         set_settings(settings)
+
+        # Staff page: rows arrive in the order they were arranged on the page
+        with conn() as c:
+            for order, username in enumerate(request.form.getlist("staff_user"), start=1):
+                position = (request.form.get(f"position:{username}") or "").strip()[:80]
+                shown = 1 if request.form.get(f"show:{username}") else 0
+                c.execute("UPDATE users SET position = ?, on_staff_page = ?, staff_order = ? WHERE username = ?",
+                          (position, shown, order, username))
+            c.commit()
         flash("Settings saved.", "ok")
         return redirect(url_for("admin_settings"))
 
