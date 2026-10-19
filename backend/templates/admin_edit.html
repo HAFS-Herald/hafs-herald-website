@@ -35,44 +35,20 @@
       <input type="hidden" name="csrf" value="{{ csrf }}" />
       <input type="hidden" name="is_new" value="{{ 1 if is_new else 0 }}" />
 
-      <div class="row">
-        <label class="field">
-          <span class="field-label">ID (slug)</span>
-          <input name="id" value="{{ a.id }}" {% if not is_new %}readonly{% endif %} placeholder="e.g. policy-school-board" />
-          <span class="help">Lowercase letters, numbers and dashes. Becomes the link: <code>article.html?id=…</code>{% if is_new %}. Filled from the title if left empty.{% endif %}</span>
-        </label>
-
-        <label class="field">
-          <span class="field-label">Date</span>
-          <input name="date" value="{{ a.date }}" placeholder="YYYY-MM-DD" />
-        </label>
-      </div>
-
-      <div class="row">
-        <label class="field">
-          <span class="field-label">Issue number</span>
-          <input name="issue" value="{{ a.issue or 0 }}" />
-          <span class="help">Home page shows the current issue only.</span>
-        </label>
-
-        <label class="field">
-          <span class="field-label">Status</span>
-          <select name="status">
-            <option value="draft" {% if a.status == "draft" %}selected{% endif %}>Draft — still working on it</option>
-            <option value="review" {% if a.status == "review" %}selected{% endif %}>Submit for review — ready for an editor</option>
-            {% if can_publish %}
-              <option value="published" {% if a.status == "published" %}selected{% endif %}>Published — live on the site</option>
-            {% endif %}
-          </select>
-          <span class="help">
-            {% if can_publish %}Use Preview to check an article before publishing.{% else %}An editor will publish it once it's reviewed.{% endif %}
-          </span>
-        </label>
-      </div>
-
       <label class="field">
         <span class="field-label">Title</span>
         <input name="title" value="{{ a.title }}" required />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Link</span>
+        {% if is_new %}
+          <input name="id" value="{{ a.id }}" id="idField" autocomplete="off" spellcheck="false" placeholder="made from the title" />
+          <span class="help">Made from the title as you type (Korean is romanized): <code>article.html?id=<span id="idPreview">{{ a.id or "…" }}</span></code>. Edit it for a shorter link; it can't change after the first save.</span>
+        {% else %}
+          <input name="id" value="{{ a.id }}" readonly />
+          <span class="help">The article's address: <code>article.html?id={{ a.id }}</code>. Links can't change once saved.</span>
+        {% endif %}
       </label>
 
       <div class="row">
@@ -87,9 +63,37 @@
 
         <label class="field">
           <span class="field-label">Author</span>
-          <input name="author" value="{{ a.author }}" required />
+          <input name="author" value="{{ a.author }}" placeholder="the writer's name" />
+          <span class="help">Filled in with {{ "your name" if is_new else "the writer's name" }}. Change it for co-written pieces, e.g. <em>Kim Ji-woo and Lee Min</em>. Left blank, it uses the name of whoever created the article.</span>
         </label>
       </div>
+
+      <div class="row">
+        <label class="field">
+          <span class="field-label">Date</span>
+          <input name="date" value="{{ a.date }}" placeholder="YYYY-MM-DD" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Issue number</span>
+          <input name="issue" value="{{ a.issue or 0 }}" />
+          <span class="help">Home page shows the current issue only.</span>
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Status</span>
+        <select name="status">
+          <option value="draft" {% if a.status == "draft" %}selected{% endif %}>Draft — still working on it</option>
+          <option value="review" {% if a.status == "review" %}selected{% endif %}>Submit for review — ready for an editor</option>
+          {% if can_publish %}
+            <option value="published" {% if a.status == "published" %}selected{% endif %}>Published — live on the site</option>
+          {% endif %}
+        </select>
+        <span class="help">
+          {% if can_publish %}Use Preview to check an article before publishing.{% else %}An editor will publish it once it's reviewed.{% endif %}
+        </span>
+      </label>
 
       <label class="field">
         <span class="field-label">Summary</span>
@@ -123,9 +127,10 @@
         <button class="btn btn-muted" type="button" data-wrap="*" title="Italic"><em>I</em></button>
         <button class="btn btn-muted" type="button" data-link title="Link">Link</button>
         <button class="btn btn-muted" type="button" data-prefix="## " title="Subheading">Heading</button>
-        <button class="btn btn-muted" type="button" data-prefix="- " title="Bulleted list">List</button>
+        <button class="btn btn-muted" type="button" data-list="bullet" title="Bulleted list">• List</button>
+        <button class="btn btn-muted" type="button" data-list="number" title="Numbered list">1. List</button>
         <span class="help">
-          <code>**bold**</code> · <code>*italic*</code> · <code>[text](https://…)</code> · <code>## Subheading</code> · lines starting with <code>- </code> make a list ·
+          <code>**bold**</code> · <code>*italic*</code> · <code>[text](https://…)</code> · <code>## Subheading</code> · lines starting with <code>- </code> make a bulleted list, <code>1. </code> <code>2. </code> a numbered one ·
           image: <code>![Description](assets/uploads/photo.jpg "Caption")</code> (copy paths from <a href="/admin/media">Media</a>)
         </span>
       </div>
@@ -234,13 +239,31 @@
       });
     })();
     (() => {
-      // Suggest an ID from an English title (Korean titles: type one in)
-      const idField = document.querySelector('input[name="id"]:not([readonly])');
+      // The link follows the title as it's typed, until someone edits the link itself.
+      // makeSlug mirrors make_slug() in backend/app.py, which has the final say on save.
+      const idField = document.getElementById("idField");
+      const preview = document.getElementById("idPreview");
       const titleField = document.querySelector('input[name="title"]');
-      titleField?.addEventListener("blur", () => {
-        if (!idField || idField.value) return;
-        idField.value = titleField.value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
-      });
+      if (!idField) return;
+      const INI = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"];
+      const VOW = ["a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"];
+      const FIN = ["", "k", "k", "k", "n", "n", "n", "t", "l", "k", "m", "l", "l", "l", "p", "l", "m", "p", "p", "t", "t", "ng", "t", "t", "k", "t", "p", "t"];
+      const romanize = (text) => Array.from(text, (ch) => {
+        const c = ch.codePointAt(0) - 0xac00;
+        return c >= 0 && c < 11172 ? INI.at(Math.floor(c / 588)) + VOW.at(Math.floor((c % 588) / 28)) + FIN.at(c % 28) : ch;
+      }).join("");
+      const makeSlug = (text) => {
+        let s = romanize(text || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+        if (s.length > 60) { const cut = s.slice(0, 60); s = cut.includes("-") ? cut.slice(0, cut.lastIndexOf("-")) : cut; }
+        return s.replace(/^-+|-+$/g, "");
+      };
+      let touched = idField.value !== "" && idField.value !== makeSlug(titleField.value);
+      const show = () => { if (preview) preview.textContent = makeSlug(idField.value) || makeSlug(titleField.value) || "…"; };
+      titleField.addEventListener("input", () => { if (!touched) idField.value = makeSlug(titleField.value); show(); });
+      idField.addEventListener("input", () => { touched = idField.value.trim() !== ""; show(); });
+      idField.addEventListener("blur", () => { idField.value = makeSlug(idField.value) || (touched = false, makeSlug(titleField.value)); show(); });
+      show();
     })();
     (() => {
       const ta = document.getElementById("bodyField");
@@ -261,15 +284,22 @@
         const sel = ta.value.slice(a, b) || "link text";
         replace(a, b, `[${sel}](${url})`, a + 1, a + 1 + sel.length);
       });
-      document.querySelectorAll(".format-bar [data-prefix]").forEach((btn) => btn.addEventListener("click", () => {
-        // Apply to every line touched by the selection
-        const p = btn.dataset.prefix;
+      // Rewrite every line the selection touches; blank lines are left alone so paragraphs stay apart
+      const eachLine = (fn) => {
         const start = ta.value.lastIndexOf("\n", ta.selectionStart - 1) + 1;
         let end = ta.value.indexOf("\n", ta.selectionEnd);
         if (end === -1) end = ta.value.length;
-        const lines = ta.value.slice(start, end).split("\n").map((ln) => (ln.startsWith(p) ? ln : p + ln));
-        const text = lines.join("\n");
+        let n = 0;
+        const text = ta.value.slice(start, end).split("\n").map((ln) => (ln.trim() ? fn(ln, n++) : ln)).join("\n");
         replace(start, end, text, start, start + text.length);
+      };
+      const bare = (ln) => ln.replace(/^\s*(?:[-*]|\d{1,3}[.)])\s+/, "");
+      document.querySelectorAll(".format-bar [data-prefix]").forEach((btn) => btn.addEventListener("click", () => {
+        const p = btn.dataset.prefix;
+        eachLine((ln) => (ln.startsWith(p) ? ln : p + ln));
+      }));
+      document.querySelectorAll(".format-bar [data-list]").forEach((btn) => btn.addEventListener("click", () => {
+        eachLine(btn.dataset.list === "number" ? (ln, i) => `${i + 1}. ${bare(ln)}` : (ln) => `- ${bare(ln)}`);
       }));
     })();
   </script>

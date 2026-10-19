@@ -63,7 +63,8 @@ This repo is split into:
 - **Feedback:** in Preview, click 💬 under any paragraph to comment on it (or use the box for the whole article).
   Writers see open comments on their Edit page and mark them Resolved. The article list shows a 💬 count.
   Comments never appear on the public site.
-- Article bodies support `**bold**`, `*italic*`, `[links](https://...)`, `## Subheadings` and `- ` lists.
+- Article bodies support `**bold**`, `*italic*`, `[links](https://...)`, `## Subheadings`, `- ` bulleted and `1. ` numbered lists.
+- New articles get their link ID from the title automatically (Korean is romanized; a taken ID gets `-2`, `-3` …). The author defaults to the writer's name.
 - Uploaded photos are resized to 1600px and stripped of location data automatically (`MAX_IMAGE_PX` to change).
 - **Autosave:** the editor keeps unsaved changes in the browser and offers to restore them after a crash or closed tab.
 - **History:** every save is kept (last 50 per article, `MAX_REVISIONS`). The History page shows what changed,

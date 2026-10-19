@@ -497,7 +497,7 @@ textarea{ resize: vertical; }
   font-size: 1.03rem;
 }
 .prose p{ margin: 0 0 1rem 0; }
-.prose ul{ margin: 0 0 1rem 0; padding-left: 1.3rem; }
+.prose ul, .prose ol{ margin: 0 0 1rem 0; padding-left: 1.3rem; }
 .prose li{ margin: .25rem 0; }
 .prose a{ text-decoration: underline; text-underline-offset: 2px; }
 .correction{
