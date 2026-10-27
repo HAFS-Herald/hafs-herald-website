@@ -7,7 +7,7 @@ This repo is split into:
 ## Backend Railway (Flask)
 - **Root Directory** is `backend`.
 - **Environment Variables**:
-   - `HAFS_ADMIN_PASSWORD` = your admin password
+   - `HAFS_ADMIN_PASSWORD` = your admin password (at least 12 characters; shorter ones turn the built-in login off)
    - `FLASK_SECRET` = any long random string (optional; one is generated and kept in the data folder if unset)
    - `PUBLIC_SITE_URL` = the public site's address (optional; defaults to `https://hafsherald.com`; set it only if the site moves)
 - **Volume** mounted at `/data`, with

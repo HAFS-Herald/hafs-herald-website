@@ -33,7 +33,7 @@ def _csrf_token() -> str:
 
 def _verify_csrf() -> bool:
     form_tok = request.form.get("csrf", "")
-    return bool(form_tok) and secrets.compare_digest(form_tok, session.get("csrf", ""))
+    return bool(form_tok) and secrets.compare_digest(form_tok.encode(), session.get("csrf", "").encode())
 
 def _get_db_path() -> Optional[Path]:
     db = current_app.config.get("DB_PATH")

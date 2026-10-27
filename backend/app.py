@@ -19,6 +19,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from flask.sessions import SecureCookieSessionInterface
 from flask_cors import CORS
 from markupsafe import Markup, escape
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -95,6 +96,8 @@ ROLE_LABELS = {"writer": "Writer", "editor": "Editor", "admin": "Admin"}
 DEFAULT_POSITIONS = {"writer": "Staff Writer", "editor": "Editor", "admin": "Editor"}
 BUILTIN_ADMIN = "admin"  # signs in with HAFS_ADMIN_PASSWORD; always available as a recovery login
 MIN_PASSWORD_LEN = 8
+# The built-in login's username is public, so its password has to do all the work
+MIN_ADMIN_PASSWORD_LEN = 12
 
 # Public form limits: (max submissions, per seconds) per visitor
 RATE_LIMITS = {"tip": (5, 3600), "subscribe": (5, 3600), "login": (10, 900)}
@@ -154,11 +157,15 @@ def load_secret_key() -> str:
 
 
 def admin_password() -> str:
-    return os.environ.get("HAFS_ADMIN_PASSWORD") or os.environ.get("ADMIN_PASSWORD") or ""
+    """The built-in admin's password, or "" (login off) when it's unset or too short to be safe."""
+    pw = os.environ.get("HAFS_ADMIN_PASSWORD") or os.environ.get("ADMIN_PASSWORD") or ""
+    return pw if len(pw) >= MIN_ADMIN_PASSWORD_LEN else ""
 
 
 def safe_next(target: str) -> str:
-    # Only allow redirects to paths on this site (blocks //evil.com and https://...)
+    # Only allow redirects to paths on this site (blocks //evil.com and https://...).
+    # Browsers ignore tabs and newlines in URLs, so "/\t/evil.com" would become "//evil.com".
+    target = re.sub(r"[\x00-\x20\x7f]", "", target or "")
     if target.startswith("/") and not target.startswith("//") and "\\" not in target:
         return target
     return "/admin"
@@ -199,7 +206,16 @@ def save_upload_image(f, target_dir: Path) -> str:
         raise ValueError("not an allowed image type")
 
     if Image is None or ext == ".gif":
-        # GIFs may be animated; keep them as they are
+        # GIFs may be animated; keep them as they are, once we know they really are images
+        if Image is not None:
+            try:
+                with Image.open(f.stream) as im:
+                    real_gif = im.format == "GIF"
+            except Exception:
+                real_gif = False
+            if not real_gif:
+                raise ValueError("not a readable image")
+            f.stream.seek(0)
         name = f"{stem}_{token}{ext}"
         f.save(target_dir / name)
         return name
@@ -429,7 +445,7 @@ def csrf_token() -> str:
 
 def verify_csrf() -> bool:
     form_tok = request.form.get("csrf", "")
-    return bool(form_tok) and form_tok == session.get("csrf", "")
+    return bool(form_tok) and secrets.compare_digest(form_tok.encode(), session.get("csrf", "").encode())
 
 
 def row_to_article(r: sqlite3.Row) -> Dict[str, Any]:
@@ -1098,6 +1114,12 @@ def is_bot_submission(data: Dict[str, Any]) -> bool:
     return bool((data.get("website") or "").strip())
 
 
+class SessionCookies(SecureCookieSessionInterface):
+    def get_cookie_secure(self, app):
+        # HTTPS-only on Railway; plain http://localhost still works for testing
+        return request.is_secure
+
+
 def create_app() -> Flask:
     # Serve /public as static files at the site root
     app = Flask(__name__, static_folder="public", static_url_path="")
@@ -1106,6 +1128,8 @@ def create_app() -> Flask:
     # Allow Cloudflare Pages (different origin) to call /api/*
     CORS(app, resources={r"/api/*": {"origins": "*"}})
     app.secret_key = load_secret_key()
+    app.session_interface = SessionCookies()
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["UPLOAD_DIR"] = str(UPLOAD_DIR)
     app.config["DB_PATH"] = str(DB_PATH)
     # Per-request cap; the media page uploads several files at once
@@ -1118,6 +1142,16 @@ def create_app() -> Flask:
         maybe_daily_backup()
         maybe_send_digests()
         load_session_user()
+
+    @app.after_request
+    def _security_headers(resp):
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        # No other site may show the newsroom in a frame (stops click-tricking staff into buttons)
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'")
+        if request.is_secure:
+            resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+        return resp
 
     _digest_checked = {"day": None}
 
@@ -1371,7 +1405,8 @@ def create_app() -> Flask:
         if username == BUILTIN_ADMIN:
             expected = admin_password()
             if not expected:
-                flash("The admin login is disabled until HAFS_ADMIN_PASSWORD is set on the server.", "error")
+                flash(f"The admin login is turned off until HAFS_ADMIN_PASSWORD is set on Railway "
+                      f"to at least {MIN_ADMIN_PASSWORD_LEN} characters.", "error")
                 return redirect(url_for("admin_login"))
             if secrets.compare_digest(pwd.encode(), expected.encode()):
                 fingerprint = password_fingerprint(expected)

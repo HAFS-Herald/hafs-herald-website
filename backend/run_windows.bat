@@ -2,8 +2,8 @@
 setlocal
 cd /d "%~dp0"
 
-REM Change this before sharing the server
-set HAFS_ADMIN_PASSWORD=changeme
+REM For testing on this computer only; it needs at least 12 characters
+set HAFS_ADMIN_PASSWORD=local-test-password
 
 where py >nul 2>nul
 if errorlevel 1 (
